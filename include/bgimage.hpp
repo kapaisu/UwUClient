@@ -12,7 +12,7 @@ namespace bgimage {
     int         width();
     int         height();
 
-    // Cover-fit: fills the rect entirely, cropping the overflow axis.
+
     void cover_uv(float rect_w, float rect_h, ImVec2& uv0, ImVec2& uv1);
 
 }

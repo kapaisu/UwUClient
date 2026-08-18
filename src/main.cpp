@@ -396,8 +396,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 1;
     }
 
-    // Menu/launcher background. Loads bg.jpg from the exe directory. If
-    // absent or malformed the menu falls back to its gradient fill.
+
     {
         std::string dir = mem::exe_dir();
         std::wstring wdir(dir.begin(), dir.end());

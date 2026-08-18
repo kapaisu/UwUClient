@@ -117,11 +117,7 @@ namespace offsets {
         inline uintptr_t CameraType    = 0x138;
         inline uintptr_t CameraSubject = 0xC8;
 
-        // Vector2int16 (2 * int16_t). Used by Rivals silent aim: overriding it
-        // re-projects ScreenPointToRay so raycasts land at (target). Hardcoded
-        // fallback verified by struct scan; the aimbot cache also auto-heals
-        // this at runtime if the value doesn't match screen dims on first
-        // Camera cache.
+
         inline uintptr_t Viewport      = 0x28C;
     }
 
@@ -138,9 +134,7 @@ namespace offsets {
 
     namespace GuiService {
 
-        // Vector4 (float x4). Layout: (topleft.x, topleft.y, bottomright.x, bottomright.y).
-        // Overriding topleft with a delta re-projects the ScreenPointToRay origin —
-        // any raycast the game fires from the cursor lands at (mouse - inset).
+
         inline uintptr_t GuiInset = 0x330;
     }
 

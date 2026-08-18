@@ -112,7 +112,7 @@ namespace aimbot {
     struct Vec2i16   { int16_t x, y; };
     struct Vec2f     { float x, y; };
 
-    // Roblox CFrame layout: 3 floats position + 9 floats row-major rotation.
+
     struct RbxCFrame {
         float px, py, pz;
         float r00, r01, r02;
@@ -156,9 +156,7 @@ namespace aimbot {
     static bool      g_silent_inset_dirty   = false;
     static bool      g_silent_viewport_dirty = false;
 
-    // Viewport candidates found by the struct scan. We write to every one
-    // per iteration — most are red-herring coincidental matches; the real
-    // ViewportSize field is somewhere in this list and the game reads from it.
+
     struct VpCandidate { unsigned off; bool is_float; };
     static std::vector<VpCandidate> g_viewport_candidates;
     static bool                     g_viewport_scanned = false;
@@ -190,21 +188,14 @@ namespace aimbot {
             g_silent_inset_saved = true;
         }
 
-        // Camera for the Rivals viewport writer.
+
         if (!g_silent_camera && offsets::Workspace::CurrentCamera) {
             RbxInstance ws = dm.get_service("Workspace");
             if (ws.valid())
                 g_silent_camera = rpm<uintptr_t>(ws.ptr + offsets::Workspace::CurrentCamera);
         }
 
-        // Scan / re-scan the Camera struct for ALL fields that currently hold
-        // screen dimensions — both int16 pairs AND float pairs. Any one of
-        // them could be the ViewportSize field the raycast reads; we write to
-        // every candidate later so we don't rely on picking the right one.
-        //
-        // Re-run every 2s if we have no candidates yet: on lobby join the
-        // Camera struct is initialized in stages, so the viewport may not be
-        // populated on our first scan.
+
         auto now = std::chrono::steady_clock::now();
         bool need_scan = g_silent_camera &&
                          (!g_viewport_scanned ||
@@ -215,7 +206,7 @@ namespace aimbot {
             g_viewport_scanned   = true;
             Vec2 s = g_screen;
             if (s.x > 1.f && s.y > 1.f) {
-                constexpr size_t SCAN_BYTES = 0x2000;   // 8KB
+                constexpr size_t SCAN_BYTES = 0x2000;
                 std::vector<uint8_t> buf(SCAN_BYTES);
                 SIZE_T got = 0;
                 mem::vm_read(mem::g_proc, (LPCVOID)g_silent_camera,
@@ -223,7 +214,7 @@ namespace aimbot {
 
                 g_viewport_candidates.clear();
 
-                // int16 scan (Vector2int16 layout).
+
                 int16_t wx16 = (int16_t)s.x, wy16 = (int16_t)s.y;
                 for (size_t off = 0; off + 4 <= got; off += 2) {
                     int16_t x, y;
@@ -235,7 +226,7 @@ namespace aimbot {
                     }
                 }
 
-                // float scan (Vector2 layout — Roblox public ViewportSize).
+
                 for (size_t off = 0; off + 8 <= got; off += 4) {
                     float fx, fy;
                     std::memcpy(&fx, buf.data() + off,     4);
@@ -267,8 +258,7 @@ namespace aimbot {
                               + offsets::MouseService::InputObject + 0x10);
     }
 
-    // Restore the game's original GuiInset. Called when there is no target so
-    // the topbar / cursor rays stop tracking last frame's aim delta.
+
     static void silent_restore_inset() {
         if (g_silent_inset_dirty && g_silent_gui_service &&
             g_silent_inset_saved  && offsets::GuiService::GuiInset) {
@@ -316,9 +306,7 @@ namespace aimbot {
             if (!esp::cfg.silent_aim) { silent_restore_inset(); prev_silent = false; continue; }
             if (check::is_typing())   { silent_restore_inset(); continue; }
 
-            // Edge-trigger: when silent aim flips on, force the FOV circle
-            // visible so the user can see the range they're picking from and
-            // adjust it from the same Combat > Silent aim panel.
+
             if (!prev_silent) {
                 esp::cfg.draw_fov = true;
                 prev_silent = true;
@@ -328,7 +316,7 @@ namespace aimbot {
             const bool is_arsenal_mode = (games::active() == games::Id::Arsenal);
             const bool needs_mouse     = !is_rivals_mode && !is_arsenal_mode;
 
-            // Rivals/Arsenal don't need MouseService; only GuiInset path does.
+
             if (needs_mouse) {
                 if (!offsets::MouseService::InputObject ||
                     !offsets::MouseService::MousePosition) {
@@ -373,9 +361,8 @@ namespace aimbot {
             Vec3 cam_pos = get_camera_pos(vm);
             uintptr_t lteam = g_local_team.load();
             float pred = esp::cfg.aim_predict ? esp::cfg.aim_prediction : 0.f;
-            // Silent aim FOV always tracks the visuals FOV circle now — one
-            // source of truth. esp::cfg.silent_fov is retained in config only
-            // for backwards compat with saved profiles.
+
+
             float fov  = esp::cfg.fov_radius > 0.f ? esp::cfg.fov_radius : 200.f;
 
             const PlayerInfo* best = nullptr;
@@ -481,10 +468,8 @@ namespace aimbot {
             const bool is_rivals = (games::active() == games::Id::Rivals);
 
             if (is_rivals) {
-                // Rivals silent aim: the client uses ScreenPointToRay from the
-                // Camera's Viewport field. Setting Viewport to (2*(screen -
-                // target)) shifts the raycast origin so it lands on target
-                // regardless of where the cursor actually is.
+
+
                 if (!g_silent_camera) {
                     if (once_per_sec(t_no_svc))
                         elog::warn("silent(Rivals): camera not cached yet");
@@ -496,17 +481,14 @@ namespace aimbot {
                     continue;
                 }
 
-                // Shift the aim point by (x_bias, y_bias) pixels — positive
-                // pushes the shot right/down.
+
                 float tx = best_screen.x + esp::cfg.rivals_x_bias;
                 float ty = best_screen.y + esp::cfg.rivals_y_bias;
-                // Guard divide-by-zero at exact screen edges.
+
                 float safe_tx = std::fabs(tx) < 1.f ? (tx < 0.f ? -1.f : 1.f) : tx;
                 float safe_ty = std::fabs(ty) < 1.f ? (ty < 0.f ? -1.f : 1.f) : ty;
 
-                // Read the current cursor from MouseService — for Rivals FPS
-                // this is locked to screen center, but reading it lets the
-                // Ratio formula work in third-person modes too.
+
                 float mx = screen.x * 0.5f, my = screen.y * 0.5f;
                 if (g_silent_mouse_service && offsets::MouseService::InputObject &&
                     offsets::MouseService::MousePosition) {
@@ -520,11 +502,11 @@ namespace aimbot {
 
                 float dx, dy;
                 if (esp::cfg.rivals_formula == 1) {
-                    // Ratio: viewport = mouse * screen / target.
+
                     dx = mx * screen.x / safe_tx;
                     dy = my * screen.y / safe_ty;
                 } else {
-                    // Delta (original snippet): viewport = 2 * (screen - target).
+
                     dx = 2.f * (screen.x - tx);
                     dy = 2.f * (screen.y - ty);
                 }
@@ -534,33 +516,25 @@ namespace aimbot {
                 Vec2i16 vp16{ (int16_t)dx, (int16_t)dy };
                 Vec2f   vpf { dx, dy };
 
-                // Only write while the fire button is held (default). Kills
-                // the flashing double-crosshair when idle and concentrates
-                // burst writes on the exact moment the raycast fires — beats
-                // Rivals's per-frame ViewportSize restore.
+
                 bool firing_ok = !esp::cfg.silent_only_when_firing ||
                                  (GetAsyncKeyState(VK_LBUTTON) & 0x8000);
                 if (!firing_ok) {
-                    // Restore so the crosshair doesn't sit at the pre-hold
-                    // computed position.
+
+
                     silent_restore_inset();
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
                     continue;
                 }
 
-                // Write our computed value to every candidate, then IMMEDIATELY
-                // restore to screen dims. This keeps the "wrong" viewport
-                // present for only ~microseconds per iteration so the game's
-                // HUD/GUI renders correctly on most frames, while still giving
-                // the fire raycast a chance to see our value if it happens to
-                // read within the burst window.
+
                 Vec2f   dim_f  { screen.x, screen.y };
                 Vec2i16 dim_i16{ (int16_t)screen.x, (int16_t)screen.y };
                 for (auto& c : g_viewport_candidates) {
                     uintptr_t addr = g_silent_camera + c.off;
                     if (c.is_float) {
                         for (int i = 0; i < 20; i++) wpm<Vec2f>(addr, vpf);
-                        wpm<Vec2f>(addr, dim_f);   // restore
+                        wpm<Vec2f>(addr, dim_f);
                     } else {
                         for (int i = 0; i < 20; i++) wpm<Vec2i16>(addr, vp16);
                         wpm<Vec2i16>(addr, dim_i16);
@@ -569,9 +543,8 @@ namespace aimbot {
                 g_silent_viewport_dirty = true;
 
                 if (once_per_sec(t_ok)) {
-                    // Read back the float candidate (if any) to prove writes
-                    // stick. If back != vpf the game is restoring between our
-                    // writes and its raycast — burst more or hook.
+
+
                     Vec2f back{0.f, 0.f};
                     bool have_back = false;
                     for (auto& c : g_viewport_candidates) if (c.is_float) {
@@ -591,21 +564,11 @@ namespace aimbot {
                         (have_back ? " OVERWRITTEN" : ""));
                 }
 
-                // 1ms sleep = ~500 Hz iterations. Each iteration writes 20
-                // times then restores, so the raycast can catch our value
-                // during the burst window while UI renders correctly the rest
-                // of the frame.
+
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             } else if (games::active() == games::Id::Arsenal) {
-                // Arsenal silent aim, invisible-on-shooter variant.
-                //
-                // Instead of rotating our Camera (which the renderer sees and
-                // makes jerky), we snapshot our camera's forward ray, teleport
-                // the TARGET's HumanoidRootPart to sit on that ray at 10 studs
-                // out, hold for one frame, then restore the target's real
-                // CFrame. The client's fire raycast lands on the teleported
-                // target and `ReplicatedStorage.HitPart:FireServer(target)`
-                // registers a hit. Our camera never moves.
+
+
                 if (!g_silent_camera || !offsets::Camera::CFrame ||
                     !offsets::BasePart::Primitive ||
                     !offsets::Primitive::CFrame) {
@@ -620,8 +583,7 @@ namespace aimbot {
 
                 bool lmb_down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
 
-                // Edge detection: fire once per LMB-down. Continuous mode
-                // teleports on every iteration while held (auto weapons).
+
                 static bool prev_lmb = false;
                 bool edge_fire  = lmb_down && !prev_lmb;
                 bool cont_fire  = esp::cfg.arsenal_continuous_flick && lmb_down;
@@ -648,7 +610,7 @@ namespace aimbot {
                 }
                 const uintptr_t tgt_cf_addr = target_prim + offsets::Primitive::CFrame;
 
-                // Snapshot user's Camera.CFrame — need position + forward.
+
                 RbxCFrame ucam{};
                 mem::vm_read(mem::g_proc,
                     (LPCVOID)(g_silent_camera + offsets::Camera::CFrame),
@@ -657,7 +619,7 @@ namespace aimbot {
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
                     continue;
                 }
-                // Camera lookVector in Roblox = -column(2) = (-r02,-r12,-r22).
+
                 Vec3 fwd{ -ucam.r02, -ucam.r12, -ucam.r22 };
                 Vec3 eye{ ucam.px, ucam.py, ucam.pz };
                 Vec3 hit_pos{
@@ -666,21 +628,18 @@ namespace aimbot {
                     eye.z + fwd.z * 10.f
                 };
 
-                // Snapshot target's real CFrame so we can restore.
+
                 RbxCFrame torig{};
                 mem::vm_read(mem::g_proc, (LPCVOID)tgt_cf_addr,
                                   &torig, sizeof(torig), nullptr);
 
-                // Warp target to sit on our forward ray; keep their rotation.
+
                 RbxCFrame warp = torig;
                 warp.px = hit_pos.x;
                 warp.py = hit_pos.y;
                 warp.pz = hit_pos.z;
 
-                // Burst-write the warp position, then restore. Total window is
-                // ~microseconds — the local client sees the teleported target
-                // long enough to raycast it, and restores before the next
-                // frame renders. Kill-cams may see a 1-frame teleport blip.
+
                 for (int i = 0; i < 8; i++)
                     wpm<RbxCFrame>(tgt_cf_addr, warp);
                 wpm<RbxCFrame>(tgt_cf_addr, torig);
@@ -694,10 +653,8 @@ namespace aimbot {
                 std::this_thread::sleep_for(std::chrono::milliseconds(
                     cont_fire ? 2 : 8));
             } else {
-                // GuiInset silent aim: rather than move the game's cursor to
-                // the target, shift the GuiInset by (target - mouse). Roblox
-                // derives ScreenPointToRay from (mouse_pos - GuiInset.xy), so
-                // any raycast fired from the cursor now hits target_point.
+
+
                 if (!g_silent_gui_service || !offsets::GuiService::GuiInset) {
                     if (once_per_sec(t_no_svc))
                         elog::warn("silent: GuiService offset missing (svc=0x%llX inset=0x%llX)",

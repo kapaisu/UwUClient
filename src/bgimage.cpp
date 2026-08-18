@@ -16,8 +16,7 @@ namespace bgimage {
         if (!dev) return false;
         shutdown();
 
-        // COM for WIC — safe to call repeatedly; we don't uninit because other
-        // subsystems may rely on it.
+
         HRESULT hr_co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         (void)hr_co;
 
@@ -118,13 +117,13 @@ namespace bgimage {
         float img_ar = (float)g_w / (float)g_h;
         float rct_ar = rect_w / rect_h;
         if (img_ar > rct_ar) {
-            // Image is wider than rect: crop left/right.
-            float visible_w_units = rct_ar / img_ar; // fraction of image width kept
+
+            float visible_w_units = rct_ar / img_ar;
             float pad = (1.f - visible_w_units) * 0.5f;
             uv0 = {pad, 0.f};
             uv1 = {1.f - pad, 1.f};
         } else {
-            // Image is taller than rect: crop top/bottom.
+
             float visible_h_units = img_ar / rct_ar;
             float pad = (1.f - visible_h_units) * 0.5f;
             uv0 = {0.f, pad};

@@ -203,32 +203,19 @@ namespace esp {
         int   silent_aim_part      = 0;
         float silent_fov           = 200.f;
 
-        // Rivals viewport-writer tuneables. If the game consistently shoots
-        // the wrong side of the target, flip the axis; if it lands beside
-        // the target because your crosshair isn't at exact screen center,
-        // dial in the bias (pixels — positive = shoot lower / more right).
+
         bool  rivals_flip_x        = false;
         bool  rivals_flip_y        = false;
         float rivals_x_bias        = 0.f;
         float rivals_y_bias        = 0.f;
 
-        // Write the viewport override ONLY while the fire button is held.
-        // Cures the flashing double-crosshair (writes only during shots) and
-        // concentrates the burst around the exact moment the raycast happens,
-        // which beats Rivals's per-frame viewport restore in new rounds.
+
         bool  silent_only_when_firing = true;
 
-        // 0 = Delta:  vp = 2 * (screen - target)         (proven working — default)
-        // 1 = Ratio:  vp = mouse * screen / target       (alternate; may work
-        //                                                 better off-center in
-        //                                                 some Rivals builds).
+
         int   rivals_formula        = 0;
 
-        // Arsenal-only. Silent aim rotates Camera.CFrame to point at target
-        // so the client raycast hits it. When continuous_flick is OFF, we
-        // only flick on the exact LMB-down edge — one clean shot per click,
-        // no camera jerk while holding fire. Turn ON for auto weapons at the
-        // cost of visible camera jitter.
+
         bool  arsenal_continuous_flick = false;
 
         bool  aim_shake            = false;

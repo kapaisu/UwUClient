@@ -16,9 +16,7 @@ namespace dumper {
     std::atomic<size_t> g_progress_count{0};
     std::string         g_last_dump_dir;
 
-    // Hard caps — DataModels can grow into the hundreds of thousands of
-    // instances. Depth cap catches any accidental cycle or self-referencing
-    // container. Node cap keeps the output files bounded.
+
     static constexpr size_t MAX_NODES = 500000;
     static constexpr int    MAX_DEPTH = 40;
 
@@ -99,21 +97,21 @@ namespace dumper {
             std::string cls  = f.node.get_class();
             std::string name = f.node.get_name();
 
-            // Indented tree line
+
             for (int i = 0; i < f.depth; i++) fputs("  ", tf);
             fprintf(tf, "[%s] \"%s\" @ 0x%llX  parent=0x%llX\n",
                     cls.c_str(), name.c_str(),
                     (unsigned long long)f.node.ptr,
                     (unsigned long long)f.parent);
 
-            // Services (direct children of DataModel).
+
             if (f.depth == 1) {
                 fprintf(sf, "[%s] %s @ 0x%llX\n",
                         cls.c_str(), name.c_str(),
                         (unsigned long long)f.node.ptr);
             }
 
-            // Flat JSON entry
+
             if (!first_json) fputs(",\n", jf);
             first_json = false;
             fputs("  {", jf);
@@ -124,7 +122,7 @@ namespace dumper {
             fputs("\"name\":",  jf); escape_json(jf, name);
             fputs("}", jf);
 
-            // Push children in reverse so natural order is preserved in output.
+
             auto kids = f.node.get_children();
             for (auto it = kids.rbegin(); it != kids.rend(); ++it) {
                 stack.push_back({*it, f.depth + 1, f.node.ptr});
@@ -152,7 +150,7 @@ namespace dumper {
     }
 
     void dump_datamodel_async(const std::string& base_dir) {
-        if (g_dumping.exchange(true)) return;   // already running
+        if (g_dumping.exchange(true)) return;
         g_progress_count.store(0);
         std::thread([base_dir]() {
             std::string dir = dump_datamodel(base_dir);

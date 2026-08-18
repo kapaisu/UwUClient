@@ -2218,7 +2218,7 @@ static void draw_explorer_pane(ImVec2 cont_min, ImVec2 cont_max) {
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(3);
 
-    // Dump button — sits at the right end of the search row.
+
     {
         ImVec2 bmin{sp.x + sw - DUMP_BTN_W - 4.f, sp.y + 4.f};
         ImVec2 bmax{sp.x + sw - 4.f,              sp.y + sh - 4.f};
@@ -2971,13 +2971,12 @@ static void draw_mode_picker() {
     ImGui::End();
 }
 
-// ── Boot terminal ────────────────────────────────────────────────────────
 
 struct BootLine {
     const char* text;
     ImU32       col;
-    float       delay;   // seconds from terminal start until reveal
-    bool        is_pink_big;   // welcome line, huge pink
+    float       delay;
+    bool        is_pink_big;
 };
 
 static void draw_boot_terminal() {
@@ -3009,7 +3008,7 @@ static void draw_boot_terminal() {
     drop_shadow(ImGui::GetBackgroundDrawList(),
                 wp, {wp.x + ws.x, wp.y + ws.y}, 12.f, 36.f, 0.8f);
 
-    // Solid terminal black — no bg image, this is meant to feel like a shell.
+
     dl->AddRectFilled(wp, {wp.x + ws.x, wp.y + ws.y},
                       IM_COL32(4, 4, 6, 250), 14.f);
     dl->AddRect(wp, {wp.x + ws.x, wp.y + ws.y},
@@ -3286,7 +3285,7 @@ static void draw_launcher() {
         }
     }
 
-    // Game grid — 4 cols, centered last row (13 cards).
+
     struct GameCard { const char* name; const char* tag; int icon; };
     static const GameCard CARDS[] = {
         {"Universal",     "any game",              8},
