@@ -1,0 +1,1 @@
+add_console_app(Sample1 main.cpp)

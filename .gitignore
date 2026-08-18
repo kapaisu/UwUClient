@@ -1,0 +1,23 @@
+# Build output
+build/
+dist/
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# IDE / editor
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Runtime state
+*.bin
+*.log
+detections.txt
+
+# OS junk
+Thumbs.db
+.DS_Store
