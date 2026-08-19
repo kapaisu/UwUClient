@@ -143,25 +143,32 @@ static void position_reader_thread() {
                         ? rpm<uintptr_t>(p.player_ptr + offsets::Player::Team) : 0;
                     if (offsets::Player::UserId)     p.user_id = rpm<long long>(p.player_ptr + offsets::Player::UserId);
                     if (offsets::Player::AccountAge) p.account_age = rpm<int>(p.player_ptr + offsets::Player::AccountAge);
-                    auto workspace_char_lookup = [&]() -> uintptr_t {
-                        RbxDataModel dm = RbxDataModel::get();
-                        if (!dm.valid()) return 0;
-                        RbxInstance ws = dm.get_service("Workspace");
-                        if (!ws.valid()) return 0;
-                        RbxInstance candidate;
-                        RbxInstance char_root = ws.find_child_by_name("CharacterRoot");
-                        if (char_root.valid()) {
-                            candidate = char_root.find_child_by_name(p.name);
-                            if (!candidate.valid()) candidate = char_root.find_child_by_name("Player");
-                        }
-                        if (!candidate.valid()) candidate = ws.find_child_by_name(p.name);
-                        if (!candidate.valid()) candidate = ws.find_child_by_name("Player");
-                        if (candidate.valid() && candidate.get_class() == "Model") return candidate.ptr;
-                        return 0;
-                    };
-
                     uintptr_t char_ptr = rpm<uintptr_t>(p.player_ptr + offsets::Player::Character);
-                    if (!char_ptr) char_ptr = workspace_char_lookup();
+                    if (!char_ptr) {
+                        RbxDataModel dm = RbxDataModel::get();
+                        if (dm.valid()) {
+                            RbxInstance ws = dm.get_service("Workspace");
+                            if (ws.valid()) {
+                                RbxInstance char_root = ws.find_child_by_name("CharacterRoot");
+                                RbxInstance candidate;
+                                if (char_root.valid()) {
+                                    candidate = char_root.find_child_by_name("Player");
+                                    if (!candidate.valid()) {
+                                        candidate = char_root.find_child_by_name(p.name);
+                                    }
+                                }
+                                if (!candidate.valid()) {
+                                    candidate = ws.find_child_by_name("Player");
+                                }
+                                if (!candidate.valid()) {
+                                    candidate = ws.find_child_by_name(p.name);
+                                }
+                                if (candidate.valid() && candidate.get_class() == "Model") {
+                                    char_ptr = candidate.ptr;
+                                }
+                            }
+                        }
+                    }
 
                     if (char_ptr) {
                         if (char_ptr != p.cached_char_ptr) {
@@ -175,10 +182,10 @@ static void position_reader_thread() {
                             p.seen_dead = false;
                         }
 
-                        auto scan_joints = [&](uintptr_t cp) {
-                            RbxInstance character{cp};
+                        if (!p.joint_valid_mask) {
+                            RbxInstance character{char_ptr};
                             struct J { const char* name; int idx; };
-                            static const J M[] = {
+                            static const J MAP[] = {
                                 {"Head",           J_Head},
                                 {"UpperTorso",     J_UpperTorso},
                                 {"LowerTorso",     J_LowerTorso},
@@ -203,7 +210,7 @@ static void position_reader_thread() {
                             };
                             for (auto& c : character.get_children()) {
                                 std::string nm = c.get_name();
-                                for (auto& m : M) {
+                                for (auto& m : MAP) {
                                     if (nm == m.name) {
                                         uintptr_t prim = rpm<uintptr_t>(c.ptr + offsets::BasePart::Primitive);
                                         if (prim) {
@@ -214,25 +221,7 @@ static void position_reader_thread() {
                                     }
                                 }
                             }
-                        };
-
-                        if (!p.joint_valid_mask) {
-                            scan_joints(char_ptr);
-                            if (!p.joint_valid_mask) {
-                                uintptr_t alt = workspace_char_lookup();
-                                if (alt && alt != char_ptr) {
-                                    p.cached_char_ptr = alt;
-                                    p.hrp_ptr = 0;
-                                    p.head_ptr = 0;
-                                    p.humanoid_ptr = 0;
-                                    p.valid = false;
-                                    for (int i = 0; i < J_COUNT; i++) p.joint_prim[i] = 0;
-                                    char_ptr = alt;
-                                    scan_joints(char_ptr);
-                                }
-                            }
                         }
-
                         for (int i = 0; i < J_COUNT; i++) {
                             if (!p.joint_prim[i]) continue;
                             p.joint_pos[i] = rpm<Vec3>(p.joint_prim[i] + offsets::Primitive::Position);
