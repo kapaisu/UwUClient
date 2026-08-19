@@ -4,7 +4,7 @@ project(UwUClient LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ── UwUClient.exe ────────────────────────────────────────────────────────────
+
 add_executable(UwUClient WIN32
     src/main.cpp
     src/overlay.cpp
@@ -15,7 +15,7 @@ add_executable(UwUClient WIN32
     src/bgimage.cpp
     src/dumper.cpp
 
-    # Void-theme ImGui menu (single file)
+
     src/menu.cpp
 
     resources.rc
@@ -55,11 +55,11 @@ if(MSVC)
     set_property(TARGET UwUClient APPEND_STRING PROPERTY LINK_FLAGS " /MANIFEST:NO")
 endif()
 
-# Back to static CRT — ship one exe, nothing else required.
+
 set_property(TARGET UwUClient PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-# Ship bg.jpg next to the exe so bgimage::load finds it at runtime.
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/bg.jpg")
     add_custom_command(TARGET UwUClient POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
