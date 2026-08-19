@@ -10,8 +10,8 @@ Written in C++20. Single-file exe, static CRT, no runtime dependencies to instal
 
 - **Windows 10 / 11**, x64.
 - **Visual Studio 2022** with the `Desktop development with C++` workload (or standalone MSVC v143 Build Tools + Windows 10/11 SDK).
-- **CMake 3.20+** — either the CMake bundled with VS 2022 or `winget install Kitware.CMake`.
-- **Git** — for cloning.
+- **CMake 3.20+** either the CMake bundled with VS 2022 or `winget install Kitware.CMake`.
+- **Git** for cloning.
 
 No external libraries need to be installed. `vendor/` already ships:
 - imgui (Docking branch)
@@ -31,7 +31,7 @@ cmake --build build --config Release --target UwUClient
 
 Output: `build/Release/UwUClient.exe`.
 
-The build target is `UwUClient`. `Debug` builds work too but the static-CRT link cost balloons — use `Release` unless you're debugging.
+The build target is `UwUClient`. `Debug` builds work too but the static-CRT link cost balloons use `Release` unless you're debugging.
 
 ---
 
@@ -47,10 +47,10 @@ Copy the exe out of `build/Release/` and place these files next to it (all optio
 The exe also searches `%APPDATA%\UwUClient\` and `%TEMP%\uwuclient\` for the MP3, so you can drop it there instead.
 
 **Startup flow:**
-1. Mode picker — `Usermode` (works) or `Kernel Mode` (falls back to usermode with a warning).
-2. Boot terminal — CRT-style loading screen while the offset scanner runs.
-3. Game selector — pick a game preset (Universal / Arsenal / Rivals / Da Hood / …).
-4. Main menu — press `RShift` in-game to toggle. `END` to save + quit.
+1. Mode picker  `Usermode` (works) or `Kernel Mode` (falls back to usermode with a warning).
+2. Boot terminal CRT-style loading screen while the offset scanner runs.
+3. Game selector pick a game preset (Universal / Arsenal / Rivals / Da Hood / …).
+4. Main menu  press `RShift` in-game to toggle. `END` to save + quit.
 
 ---
 
@@ -70,7 +70,7 @@ CMakeLists.txt  build config
 
 ## Notes
 
-- `PROCESS_ALL_ACCESS` is not used — the exe opens the target with
+- `PROCESS_ALL_ACCESS` is not used the exe opens the target with
   `PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION | PROCESS_QUERY_LIMITED_INFORMATION`.
 - Memory reads / writes go through `NtReadVirtualMemory` / `NtWriteVirtualMemory` resolved from ntdll at first call; there are no static `ReadProcessMemory` / `WriteProcessMemory` imports in the IAT.
 - Configs auto-save to `config.bin` next to the exe. With `per_game_profiles` enabled, per-game presets save to `preset_<GameName>.bin`.
