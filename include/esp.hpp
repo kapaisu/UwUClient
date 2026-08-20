@@ -46,6 +46,7 @@ namespace esp {
         bool  aim_sticky    = false;
         bool  team_check    = false;
         bool  aim_visibility_check = false;
+        bool  aim_wallcheck        = false;
         bool  aim_jitter    = false;
         float aim_jitter_strength = 0.5f;
         int   aim_priority  = 0;
@@ -58,7 +59,17 @@ namespace esp {
         bool  trigger_enabled = false;
         int   trigger_key   = 0x06;
         float trigger_fov   = 6.f;
-        int   trigger_delay = 40;
+        int   trigger_delay = 110;
+        bool  trigger_team_check = true;
+        bool  trigger_wallcheck  = true;
+        bool  trigger_hold_mode  = false;
+
+        bool  spotify_hud_enabled = false;
+        bool  spotify_hud_edit    = false;
+        float spotify_hud_x       = 20.f;
+        float spotify_hud_y       = 420.f;
+        float spotify_hud_w       = 340.f;
+        float spotify_hud_h       = 110.f;
 
         bool  speed_enabled = false;
         float speed_value   = 16.f;
@@ -251,7 +262,7 @@ namespace esp {
         bool  trig_hitbox_viz      = false;
         float trig_box_scale       = 1.0f;
         bool  trig_knife_check     = false;
-        int   trig_acquire_ms      = 100;
+        int   trig_acquire_ms      = 20;
         ImVec4 col_trig_hitbox     = {1.00f, 0.85f, 0.30f, 0.85f};
 
         int   esp_font_pick        = 1;

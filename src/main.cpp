@@ -5,6 +5,7 @@
 #include "../include/esp.hpp"
 #include "../include/math.hpp"
 #include "../include/aimbot.hpp"
+#include "../include/spotify.hpp"
 #include "../include/teleport.hpp"
 #include "../include/features.hpp"
 #include "../include/scanner.hpp"
@@ -538,6 +539,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         }
     }).detach();
     aimbot::start_thread();
+    spotify::start();
 
     std::thread(check::run).detach();
 
@@ -596,10 +598,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
 
         overlay::sync_to_target(roblox_hwnd);
 
-        if (menu::is_injected() && (GetAsyncKeyState(VK_RSHIFT) & 1)) {
-            bool open = !g_menu_open.load();
-            g_menu_open.store(open);
-            overlay::set_passthrough(!open);
+        {
+            HWND fg_now = GetForegroundWindow();
+            bool rob_focus = fg_now == roblox_hwnd || fg_now == overlay::g_hwnd;
+            if (menu::is_injected() && rob_focus && (GetAsyncKeyState(VK_RSHIFT) & 1)) {
+                bool open = !g_menu_open.load();
+                g_menu_open.store(open);
+                overlay::set_passthrough(!open);
+            }
         }
         if (GetAsyncKeyState(VK_F10) & 1) {
             esp::cfg.show_console = !esp::cfg.show_console;
@@ -741,6 +747,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         }
 
         overlay::begin_frame();
+
+        HWND fg = GetForegroundWindow();
+        bool roblox_focused =
+            !menu::is_injected() ||
+            fg == roblox_hwnd ||
+            fg == overlay::g_hwnd;
+        if (!roblox_focused) {
+            overlay::end_frame();
+            continue;
+        }
 
         if (menu::is_injected()) {
             ImGuiIO& io = ImGui::GetIO();

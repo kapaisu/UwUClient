@@ -128,6 +128,7 @@ static const Field FLD_AIM[] = {
     F_TOGGLE("Multi-bone fallback",     esp::cfg.aim_multibone),
     F_TOGGLE("Sticky aim",              esp::cfg.aim_sticky),
     F_TOGGLE("Occlusion check (players only)", esp::cfg.aim_visibility_check),
+    F_TOGGLE("Wall check (raycast, real LoS)", esp::cfg.aim_wallcheck),
     F_TOGGLE("Skip knocked/KO targets", esp::cfg.aim_knocked_check),
     F_SLIDF("FOV radius",   esp::cfg.fov_radius,    10.f, 1000.f, 5.f,  "%.0f px"),
     F_SLIDF("Max distance", esp::cfg.aim_max_dist,   0.f, 5000.f, 10.f, "%.0f"),
@@ -191,10 +192,17 @@ static const Field FLD_TRIG[] = {
     F_KEY("Trigger key",   esp::cfg.trigger_key),
     F_SLIDF("Trigger FOV", esp::cfg.trigger_fov, 1.f, 50.f, 1.f, "%.0f px"),
     F_SLIDF("Hitbox scale", esp::cfg.trig_box_scale, 0.5f, 4.f, 0.05f, "%.2f\xC3\x97"),
-    F_SLIDI("Fire delay",  esp::cfg.trigger_delay, 0, 500, 5),
+    F_SLIDI("Fire delay (ms per click)", esp::cfg.trigger_delay, 30, 500, 5),
     F_SLIDI("Acquire (ms)",esp::cfg.trig_acquire_ms, 0, 500, 5),
+    F_TOGGLE("Hold LMB (automatic weapons)", esp::cfg.trigger_hold_mode),
+    F_TOGGLE("Team check",             esp::cfg.trigger_team_check),
+    F_TOGGLE("Wall check (visible only)", esp::cfg.trigger_wallcheck),
     F_TOGGLE("Show hitbox on screen", esp::cfg.trig_hitbox_viz),
     F_TOGGLE("Skip knife / melee",    esp::cfg.trig_knife_check),
+};
+
+static const Field FLD_SPOTIFY[] = {
+    F_TOGGLE("Edit HUD (drag + resize)", esp::cfg.spotify_hud_edit),
 };
 static const Field FLD_AUTOFIRE[] = {
     F_SLIDF("Auto-fire FOV", esp::cfg.aim_autofire_fov, 1.f, 20.f, 1.f, "%.0f px"),
@@ -366,6 +374,10 @@ static const Module MODS_CONFIG[] = {
     {"Keybinds", nullptr, FLD_KEYS, IM_ARRAYSIZE(FLD_KEYS)},
 };
 
+static const Module MODS_OFFTOPIC[] = {
+    {"Spotify player", &esp::cfg.spotify_hud_enabled, FLD_SPOTIFY, IM_ARRAYSIZE(FLD_SPOTIFY)},
+};
+
 static const Category CATS[] = {
     {"Combat",   MODS_COMBAT,   IM_ARRAYSIZE(MODS_COMBAT)},
     {"ESP",      MODS_ESP,      IM_ARRAYSIZE(MODS_ESP)},
@@ -375,6 +387,7 @@ static const Category CATS[] = {
     {"Camera",   MODS_CAM,      IM_ARRAYSIZE(MODS_CAM)},
     {"HUD",      MODS_HUD,      IM_ARRAYSIZE(MODS_HUD)},
     {"Config",   MODS_CONFIG,   IM_ARRAYSIZE(MODS_CONFIG)},
+    {"Offtopic", MODS_OFFTOPIC, IM_ARRAYSIZE(MODS_OFFTOPIC)},
     {"Explorer", nullptr,       0},
     {"Profiles", nullptr,       0},
     {"Players",  nullptr,       0},
@@ -2512,9 +2525,9 @@ static void draw_popup() {
     const Module& m = *g_popup.mod;
 
     constexpr float POP_GAP     = 14.f;
-    constexpr float POP_W_1COL  = 480.f;
-    constexpr float POP_W_2COL  = 740.f;
-    constexpr float COL_GAP     = 20.f;
+    constexpr float POP_W_1COL  = 520.f;
+    constexpr float POP_W_2COL  = 820.f;
+    constexpr float COL_GAP     = 24.f;
     ImVec2 io_size = ImGui::GetIO().DisplaySize;
 
     ImDrawList* fg = ImGui::GetForegroundDrawList();
@@ -2522,7 +2535,7 @@ static void draw_popup() {
     fg->AddRectFilled({0, 0}, io_size, IM_COL32(0, 0, 0, (int)(50 * dim)));
 
     const float HDR_H    = 54.f;
-    const float BODY_PAD = 28.f;
+    const float BODY_PAD = 68.f;
     const float ROW_GAP  = 12.f;
     auto field_h = [](const Field& f) -> float {
         switch (f.type) {
@@ -2686,14 +2699,25 @@ static void draw_popup() {
         ImGui::SetWindowPos({wp.x + md.x, wp.y + md.y});
     }
 
-    float body_h = ws.y - HDR - 12.f;
+    const float CARD_PAD = 14.f;
+    const float BODY_PAD_X = 24.f;
+    const float BODY_PAD_Y = 20.f;
+    ImVec2 card_min{wp.x + CARD_PAD, wp.y + HDR + CARD_PAD};
+    ImVec2 card_max{wp.x + ws.x - CARD_PAD, wp.y + ws.y - CARD_PAD};
+    dl->AddRectFilled(card_min, card_max,
+                      with_alpha(IM_COL32(12, 12, 14, 255), alpha), 10.f);
+    dl->AddRect(card_min, card_max,
+                with_alpha(C_LINE_HAIR, alpha), 10.f, 0, 1.f);
+
+    float body_w = card_max.x - card_min.x;
+    float body_h = card_max.y - card_min.y;
     if (body_h < 40.f) body_h = 40.f;
-    ImGui::SetCursorScreenPos({wp.x, wp.y + HDR});
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {22.f, 18.f});
+    ImGui::SetCursorScreenPos(card_min);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {BODY_PAD_X, BODY_PAD_Y});
     ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(0, 0, 0, 0));
 
     if (!two_col) {
-        ImGui::BeginChild("##popbody", {ws.x, body_h}, false,
+        ImGui::BeginChild("##popbody", {body_w, body_h}, false,
             ImGuiWindowFlags_NoBackground);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ROW_GAP});
         for (int i = 0; i < m.body_count; i++) draw_field(m.body[i]);
@@ -2702,12 +2726,12 @@ static void draw_popup() {
         ImGui::EndChild();
     } else {
 
-        float col_w = (ws.x - 44.f - COL_GAP) * 0.5f;
+        float col_w = (body_w - BODY_PAD_X * 2.f - COL_GAP) * 0.5f;
 
-        ImGui::BeginChild("##popbody", {ws.x, body_h}, false,
+        ImGui::BeginChild("##popbody", {body_w, body_h}, false,
             ImGuiWindowFlags_NoBackground);
 
-        ImGui::BeginChild("##popcolA", {col_w, body_h - 36.f}, false,
+        ImGui::BeginChild("##popcolA", {col_w, body_h - BODY_PAD_Y * 2.f}, false,
             ImGuiWindowFlags_NoBackground);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ROW_GAP});
         for (int i = 0; i < split_at; i++) draw_field(m.body[i]);
@@ -2716,7 +2740,7 @@ static void draw_popup() {
 
         ImGui::SameLine(0.f, COL_GAP);
 
-        ImGui::BeginChild("##popcolB", {col_w, body_h - 36.f}, false,
+        ImGui::BeginChild("##popcolB", {col_w, body_h - BODY_PAD_Y * 2.f}, false,
             ImGuiWindowFlags_NoBackground);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ROW_GAP});
         for (int i = split_at; i < m.body_count; i++) draw_field(m.body[i]);
@@ -2725,9 +2749,9 @@ static void draw_popup() {
 
         ImGui::EndChild();
 
-        float divider_x = wp.x + 22.f + col_w + COL_GAP * 0.5f;
-        float dy0 = wp.y + HDR + 18.f;
-        float dy1 = wp.y + ws.y - 18.f;
+        float divider_x = card_min.x + BODY_PAD_X + col_w + COL_GAP * 0.5f;
+        float dy0 = card_min.y + BODY_PAD_Y;
+        float dy1 = card_max.y - BODY_PAD_Y;
         dl->AddRectFilledMultiColor(
             {divider_x - 0.5f, dy0}, {divider_x + 0.5f, dy1},
             with_alpha(C_LINE_HAIR, 0.f),

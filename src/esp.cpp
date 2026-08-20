@@ -4,6 +4,7 @@
 #include "../include/aimbot.hpp"
 #include "../include/log.hpp"
 #include "../include/executor.hpp"
+#include "../include/spotify.hpp"
 #include <imgui.h>
 #include <cmath>
 #include <cstdio>
@@ -68,13 +69,16 @@ bool load_config(const char* path) {
     FILE* f = fopen(path, "rb");
     if (!f) return false;
     uint32_t magic = 0, sz = 0;
-    bool ok = false;
-    if (fread(&magic, sizeof(magic), 1, f) == 1 &&
-        fread(&sz, sizeof(sz), 1, f) == 1 &&
-        magic == CFG_MAGIC && sz == sizeof(Config)) {
-        ok = (fread(&cfg, sizeof(Config), 1, f) == 1);
+    if (fread(&magic, sizeof(magic), 1, f) != 1 ||
+        fread(&sz, sizeof(sz), 1, f) != 1 ||
+        magic != CFG_MAGIC) {
+        fclose(f); return false;
     }
+    size_t to_read = sz < sizeof(Config) ? (size_t)sz : sizeof(Config);
+    Config staged = cfg;
+    bool ok = (fread(&staged, to_read, 1, f) == 1);
     fclose(f);
+    if (ok) cfg = staged;
     return ok;
 }
 
@@ -117,11 +121,16 @@ std::string export_config_string() {
 bool import_config_string(const std::string& s) {
     std::vector<uint8_t> buf;
     if (!b64_decode(s, buf)) return false;
-    if (buf.size() != 8 + sizeof(Config)) return false;
+    if (buf.size() < 8) return false;
     uint32_t magic, sz;
     memcpy(&magic, buf.data(), 4); memcpy(&sz, buf.data() + 4, 4);
-    if (magic != CFG_MAGIC || sz != sizeof(Config)) return false;
-    memcpy(&cfg, buf.data() + 8, sizeof(Config));
+    if (magic != CFG_MAGIC) return false;
+    size_t avail = buf.size() - 8;
+    size_t to_copy = sz < sizeof(Config) ? (size_t)sz : sizeof(Config);
+    if (to_copy > avail) to_copy = avail;
+    Config staged = cfg;
+    memcpy(&staged, buf.data() + 8, to_copy);
+    cfg = staged;
     return true;
 }
 
@@ -786,6 +795,121 @@ void render(ImDrawList* dl, const std::vector<PlayerInfo>& players,
         snprintf(wm, sizeof(wm), "UwUClient | %.0f fps", ImGui::GetIO().Framerate);
         float w = ImGui::CalcTextSize(wm).x;
         DrawTextWithShadow(dl, {screen.x - w - 12.f, 10.f}, acc(1.f), wm);
+    }
+
+    if (cfg.spotify_hud_enabled) {
+        std::string title, artist;
+        int elapsed = 0;
+        bool playing = false;
+        spotify::snapshot(title, artist, elapsed, playing);
+
+        float& px = cfg.spotify_hud_x;
+        float& py = cfg.spotify_hud_y;
+        float& pw = cfg.spotify_hud_w;
+        float& ph = cfg.spotify_hud_h;
+        if (pw < 220.f) pw = 220.f;
+        if (ph < 80.f)  ph = 80.f;
+        if (pw > screen.x - 40.f) pw = screen.x - 40.f;
+        if (ph > screen.y - 40.f) ph = screen.y - 40.f;
+        if (px < 4.f) px = 4.f;
+        if (py < 4.f) py = 4.f;
+        if (px + pw > screen.x - 4.f) px = screen.x - pw - 4.f;
+        if (py + ph > screen.y - 4.f) py = screen.y - ph - 4.f;
+
+        ImVec2 mn{px, py};
+        ImVec2 mx{px + pw, py + ph};
+        ImU32 bg = IM_COL32(6, 6, 8, 235);
+        ImU32 border = cfg.spotify_hud_edit ? IM_COL32(255, 120, 190, 255)
+                                            : IM_COL32(40, 40, 46, 255);
+        dl->AddRectFilled(mn, mx, bg, 10.f);
+        dl->AddRect(mn, mx, border, 10.f, 0, cfg.spotify_hud_edit ? 2.f : 1.f);
+
+        ImVec2 dot_c{mn.x + 14.f, mn.y + 14.f};
+        dl->AddCircleFilled(dot_c, 5.f, IM_COL32(30, 215, 96, 255));
+        DrawTextWithShadow(dl, {dot_c.x + 12.f, mn.y + 6.f},
+                           IM_COL32(230, 230, 230, 255), "Spotify");
+        const char* by = "made by q3c";
+        float byw = ImGui::CalcTextSize(by).x;
+        DrawTextWithShadow(dl, {mx.x - byw - 10.f, mn.y + 6.f},
+                           IM_COL32(150, 150, 155, 255), by);
+
+        std::string song = title.empty() ? std::string("(nothing playing)") : title;
+        if (song.size() > 40) song = song.substr(0, 37) + "...";
+        DrawTextWithShadow(dl, {mn.x + 14.f, mn.y + 32.f},
+                           IM_COL32(255, 255, 255, 255), song.c_str());
+        std::string sub = artist.empty() ? std::string("open Spotify to see this update")
+                                         : artist;
+        if (sub.size() > 46) sub = sub.substr(0, 43) + "...";
+        DrawTextWithShadow(dl, {mn.x + 14.f, mn.y + 52.f},
+                           IM_COL32(180, 180, 190, 255), sub.c_str());
+
+        char ts[16];
+        snprintf(ts, sizeof(ts), "%d:%02d", elapsed / 60, elapsed % 60);
+        DrawTextWithShadow(dl, {mn.x + 14.f, mx.y - 24.f},
+                           IM_COL32(160, 160, 165, 255), ts);
+
+        float bh = 22.f, bw = 34.f, gap = 6.f;
+        float bx_end = mx.x - 12.f;
+        float by_c  = mx.y - 32.f;
+
+        struct Btn { const char* label; int action; };
+        Btn btns[] = { {"|>", 1}, {">>", 2} };
+        int n = 2;
+        for (int i = n - 1; i >= 0; i--) {
+            ImVec2 bmn{bx_end - bw, by_c};
+            ImVec2 bmx{bx_end,      by_c + bh};
+            ImGuiIO& io = ImGui::GetIO();
+            bool hov = io.MousePos.x >= bmn.x && io.MousePos.x <= bmx.x &&
+                       io.MousePos.y >= bmn.y && io.MousePos.y <= bmx.y;
+            ImU32 fill = hov ? IM_COL32(50, 50, 58, 255) : IM_COL32(28, 28, 34, 255);
+            dl->AddRectFilled(bmn, bmx, fill, 5.f);
+            dl->AddRect(bmn, bmx, IM_COL32(60, 60, 70, 255), 5.f, 0, 1.f);
+            const char* lbl = btns[i].label;
+            if (btns[i].action == 1) lbl = playing ? "||" : "|>";
+            ImVec2 lsz = ImGui::CalcTextSize(lbl);
+            dl->AddText({bmn.x + (bw - lsz.x) * 0.5f, bmn.y + (bh - lsz.y) * 0.5f},
+                        IM_COL32(230, 230, 235, 255), lbl);
+            if (hov && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                if (btns[i].action == 1) spotify::toggle_play();
+                else                     spotify::skip_next();
+            }
+            bx_end -= bw + gap;
+        }
+
+        if (cfg.spotify_hud_edit) {
+            ImGuiIO& io = ImGui::GetIO();
+            ImVec2 mp = io.MousePos;
+            bool in_widget = mp.x >= mn.x && mp.x <= mx.x && mp.y >= mn.y && mp.y <= mx.y;
+            bool in_resize = mp.x >= mx.x - 16.f && mp.x <= mx.x &&
+                             mp.y >= mx.y - 16.f && mp.y <= mx.y;
+
+            dl->AddTriangleFilled({mx.x - 12.f, mx.y - 2.f},
+                                  {mx.x - 2.f,  mx.y - 12.f},
+                                  {mx.x - 2.f,  mx.y - 2.f},
+                                  IM_COL32(255, 120, 190, 255));
+
+            static bool dragging = false, resizing = false;
+            static ImVec2 drag_off{0, 0};
+            static ImVec2 resize_start{0, 0};
+            static float  start_w = 0, start_h = 0;
+
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                if (in_resize) {
+                    resizing = true;
+                    resize_start = mp;
+                    start_w = pw; start_h = ph;
+                } else if (in_widget) {
+                    dragging = true;
+                    drag_off = { mp.x - px, mp.y - py };
+                }
+            }
+            if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) { dragging = false; resizing = false; }
+            if (dragging) { px = mp.x - drag_off.x; py = mp.y - drag_off.y; }
+            if (resizing) {
+                pw = start_w + (mp.x - resize_start.x);
+                ph = start_h + (mp.y - resize_start.y);
+            }
+        }
     }
 
     if (cfg.radar_enabled) {

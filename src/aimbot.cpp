@@ -108,6 +108,85 @@ namespace aimbot {
         return rpm<uint8_t>(ko.ptr + offsets::ValueBase::Value) != 0;
     }
 
+    struct WallPart { Vec3 pos; Vec3 half; };
+    static std::vector<WallPart> g_wall_cache;
+    static std::chrono::steady_clock::time_point g_wall_cache_at{};
+    static std::mutex g_wall_cache_mtx;
+
+    static void collect_parts_rec(RbxInstance root, std::vector<WallPart>& out, int depth) {
+        if (depth < 0 || !root.valid()) return;
+        if (out.size() > 2048) return;
+        for (auto& c : root.get_children()) {
+            if (out.size() > 2048) return;
+            std::string cls = c.get_class();
+            if (cls == "Model" || cls == "Folder") {
+                collect_parts_rec(c, out, depth - 1);
+                continue;
+            }
+            if (cls != "Part" && cls != "MeshPart" && cls != "UnionOperation" &&
+                cls != "TrussPart" && cls != "WedgePart" && cls != "CornerWedgePart") continue;
+
+            uintptr_t prim = rpm<uintptr_t>(c.ptr + offsets::BasePart::Primitive);
+            if (!prim) continue;
+            Vec3 sz = rpm<Vec3>(prim + offsets::Primitive::Size);
+            if (sz.x < 0.5f && sz.y < 0.5f && sz.z < 0.5f) continue;
+            Vec3 pos = rpm<Vec3>(prim + offsets::Primitive::Position);
+            out.push_back({pos, {sz.x * 0.5f, sz.y * 0.5f, sz.z * 0.5f}});
+        }
+    }
+
+    static void refresh_wall_cache_if_stale() {
+        auto now = std::chrono::steady_clock::now();
+        if (!g_wall_cache.empty() &&
+            now - g_wall_cache_at < std::chrono::milliseconds(2000)) return;
+        g_wall_cache_at = now;
+        RbxDataModel dm = RbxDataModel::get();
+        if (!dm.valid()) return;
+        RbxInstance ws = dm.get_service("Workspace");
+        if (!ws.valid()) return;
+        std::vector<WallPart> next;
+        next.reserve(g_wall_cache.capacity() ? g_wall_cache.capacity() : 256);
+        collect_parts_rec(ws, next, 4);
+        std::lock_guard<std::mutex> lk(g_wall_cache_mtx);
+        g_wall_cache.swap(next);
+    }
+
+    static bool wall_los_clear(Vec3 cam, Vec3 target) {
+        refresh_wall_cache_if_stale();
+        Vec3 d = target - cam;
+        float dist = d.length();
+        if (dist < 1.f) return true;
+        Vec3 dir = { d.x / dist, d.y / dist, d.z / dist };
+
+        std::lock_guard<std::mutex> lk(g_wall_cache_mtx);
+        for (auto& wp : g_wall_cache) {
+            Vec3 mn = { wp.pos.x - wp.half.x, wp.pos.y - wp.half.y, wp.pos.z - wp.half.z };
+            Vec3 mx = { wp.pos.x + wp.half.x, wp.pos.y + wp.half.y, wp.pos.z + wp.half.z };
+
+            float t_near = 0.f, t_far = dist;
+            bool miss = false;
+            for (int a = 0; a < 3; a++) {
+                float o = (&cam.x)[a];
+                float dv = (&dir.x)[a];
+                float mn_a = (&mn.x)[a];
+                float mx_a = (&mx.x)[a];
+                if (fabsf(dv) < 1e-6f) {
+                    if (o < mn_a || o > mx_a) { miss = true; break; }
+                    continue;
+                }
+                float t1 = (mn_a - o) / dv;
+                float t2 = (mx_a - o) / dv;
+                if (t1 > t2) std::swap(t1, t2);
+                if (t1 > t_near) t_near = t1;
+                if (t2 < t_far)  t_far  = t2;
+                if (t_near > t_far) { miss = true; break; }
+            }
+            if (miss) continue;
+            if (t_near > 1.5f && t_near < dist - 1.5f) return false;
+        }
+        return true;
+    }
+
     struct Vec4f     { float x, y, z, w; };
     struct Vec2i16   { int16_t x, y; };
     struct Vec2f     { float x, y; };
@@ -825,54 +904,97 @@ namespace aimbot {
                     return best;
                 };
 
-                if (esp::cfg.trigger_enabled &&
-                    (GetAsyncKeyState(esp::cfg.trigger_key) & 0x8000)) {
-
+                {
                     static uintptr_t candidate = 0;
                     static std::chrono::steady_clock::time_point candidate_since{};
+                    static bool trigger_lmb_down = false;
+
+                    bool key_down_trig = (GetAsyncKeyState(esp::cfg.trigger_key) & 0x8000) != 0;
+                    bool trigger_active = esp::cfg.trigger_enabled && key_down_trig;
+
                     float scaled_fov = esp::cfg.trigger_fov * esp::cfg.trig_box_scale;
                     if (scaled_fov < 1.f) scaled_fov = 1.f;
                     uintptr_t in_fov = 0;
 
-                    for (auto& p : players) {
-                        if (!p.valid || p.health <= 0) continue;
-                        if (esp::cfg.team_check && p.team_ptr && p.team_ptr == local_team) continue;
-                        if (esp::cfg.aim_knocked_check && is_knocked(p)) continue;
+                    if (trigger_active) {
+                        for (auto& p : players) {
+                            if (!p.valid || p.health <= 0) continue;
+                            if ((esp::cfg.team_check || esp::cfg.trigger_team_check) &&
+                                p.team_ptr && p.team_ptr == local_team) continue;
+                            if (esp::cfg.aim_knocked_check && is_knocked(p)) continue;
 
-                        if (esp::cfg.trig_knife_check && !p.weapon.empty()) {
-                            std::string w = p.weapon;
-                            for (auto& ch : w) ch = (char)std::tolower((unsigned char)ch);
-                            if (w.find("knife")  != std::string::npos ||
-                                w.find("bat")    != std::string::npos ||
-                                w.find("hammer") != std::string::npos ||
-                                w.find("melee")  != std::string::npos) continue;
-                        }
-                        Vec3 tpos = { p.position.x + p.velocity.x * pred * esp::cfg.aim_predict_xz,
-                                      p.position.y + 0.5f + p.velocity.y * pred * esp::cfg.aim_predict_y,
-                                      p.position.z + p.velocity.z * pred * esp::cfg.aim_predict_xz };
-                        Vec2 s = world_to_screen(vm, tpos, screen.x, screen.y);
-                        if (s.x < 0.f && s.y < 0.f) continue;
-                        float dx = s.x - center.x, dy = s.y - center.y;
-                        if (std::sqrt(dx * dx + dy * dy) <= scaled_fov) {
+                            if (esp::cfg.trig_knife_check && !p.weapon.empty()) {
+                                std::string w = p.weapon;
+                                for (auto& ch : w) ch = (char)std::tolower((unsigned char)ch);
+                                if (w.find("knife")  != std::string::npos ||
+                                    w.find("bat")    != std::string::npos ||
+                                    w.find("hammer") != std::string::npos ||
+                                    w.find("melee")  != std::string::npos) continue;
+                            }
+                            Vec3 tpos = { p.position.x + p.velocity.x * pred * esp::cfg.aim_predict_xz,
+                                          p.position.y + 0.5f + p.velocity.y * pred * esp::cfg.aim_predict_y,
+                                          p.position.z + p.velocity.z * pred * esp::cfg.aim_predict_xz };
+                            Vec2 s = world_to_screen(vm, tpos, screen.x, screen.y);
+                            if (s.x < 0.f && s.y < 0.f) continue;
+                            float dx = s.x - center.x, dy = s.y - center.y;
+                            if (std::sqrt(dx * dx + dy * dy) > scaled_fov) continue;
+
+                            Vec3 head_pos = (p.joint_valid_mask & (1u << J_Head))
+                                          ? p.joint_pos[J_Head] : tpos;
+                            if (esp::cfg.trigger_wallcheck &&
+                                !wall_los_clear(cam_pos, head_pos)) continue;
+
                             in_fov = p.player_ptr;
                             break;
                         }
                     }
 
                     auto now2 = std::chrono::steady_clock::now();
-                    if (in_fov) {
-                        if (in_fov != candidate) {
+
+                    if (esp::cfg.trigger_hold_mode) {
+                        if (in_fov && in_fov != candidate) {
                             candidate = in_fov;
                             candidate_since = now2;
                         }
-                        long long held = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            now2 - candidate_since).count();
-                        if (held >= esp::cfg.trig_acquire_ms && now2 >= next_trigger) {
-                            send_click();
-                            next_trigger = now2 + std::chrono::milliseconds(esp::cfg.trigger_delay);
+                        if (!in_fov) candidate = 0;
+
+                        bool acquired = candidate != 0 &&
+                            std::chrono::duration_cast<std::chrono::milliseconds>(
+                                now2 - candidate_since).count() >= esp::cfg.trig_acquire_ms;
+                        bool should_hold = trigger_active && acquired && in_fov;
+
+                        if (should_hold && !trigger_lmb_down) {
+                            INPUT in{}; in.type = INPUT_MOUSE;
+                            in.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+                            SendInput(1, &in, sizeof(INPUT));
+                            trigger_lmb_down = true;
+                        } else if (!should_hold && trigger_lmb_down) {
+                            INPUT in{}; in.type = INPUT_MOUSE;
+                            in.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                            SendInput(1, &in, sizeof(INPUT));
+                            trigger_lmb_down = false;
                         }
                     } else {
-                        candidate = 0;
+                        if (trigger_lmb_down) {
+                            INPUT in{}; in.type = INPUT_MOUSE;
+                            in.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                            SendInput(1, &in, sizeof(INPUT));
+                            trigger_lmb_down = false;
+                        }
+                        if (trigger_active && in_fov) {
+                            if (in_fov != candidate) {
+                                candidate = in_fov;
+                                candidate_since = now2;
+                            }
+                            long long held = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                now2 - candidate_since).count();
+                            if (held >= esp::cfg.trig_acquire_ms && now2 >= next_trigger) {
+                                send_click();
+                                next_trigger = now2 + std::chrono::milliseconds(esp::cfg.trigger_delay);
+                            }
+                        } else if (!in_fov) {
+                            candidate = 0;
+                        }
                     }
                 }
 
@@ -921,6 +1043,8 @@ namespace aimbot {
                             (p.position - cam_pos).length() > esp::cfg.aim_max_dist) break;
                         AimPoint ap = pick_point(p);
                         if (!ap.valid) break;
+                        if (esp::cfg.aim_wallcheck &&
+                            !wall_los_clear(cam_pos, ap.world)) break;
 
                         float slack = esp::cfg.aim_lock ? 3.f : 1.6f;
                         if (ap.dist > esp::cfg.fov_radius * slack) break;
@@ -966,6 +1090,8 @@ namespace aimbot {
                         if (!ap.valid) continue;
                         if (esp::cfg.aim_visibility_check &&
                             !is_visible(cam_pos, ap.world, players, vm, screen)) continue;
+                        if (esp::cfg.aim_wallcheck &&
+                            !wall_los_clear(cam_pos, ap.world)) continue;
                         float dist = ap.dist;
                         if (dist > esp::cfg.fov_radius) continue;
 
