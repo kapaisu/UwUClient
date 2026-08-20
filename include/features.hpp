@@ -452,7 +452,10 @@ inline void apply_self_mods() {
         if (uintptr_t l = ensure_lighting()) wpm<float>(l + offsets::Lighting::FogEnd, 100000.f);
     }
     if (esp::cfg.world_time_enabled && offsets::Lighting::ClockTime) {
-        if (uintptr_t l = ensure_lighting()) wpm<float>(l + offsets::Lighting::ClockTime, esp::cfg.world_time);
+        if (uintptr_t l = ensure_lighting()) {
+            double mins = (double)esp::cfg.world_time * 60.0;
+            wpm<double>(l + offsets::Lighting::ClockTime, mins);
+        }
     }
     if (esp::cfg.world_bright_enabled && offsets::Lighting::Brightness) {
         if (uintptr_t l = ensure_lighting()) wpm<float>(l + offsets::Lighting::Brightness, esp::cfg.world_bright);

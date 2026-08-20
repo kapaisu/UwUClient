@@ -7,7 +7,7 @@
 namespace esp {
 
     struct Config {
-        bool  enabled       = true;
+        bool  enabled       = false;
         int   box_style     = 1;
         bool  draw_filled   = false;
         bool  draw_name     = true;

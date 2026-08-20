@@ -9,6 +9,7 @@
 #include "../include/teleport.hpp"
 #include "../include/scanner.hpp"
 #include "../include/DebugTab.hpp"
+#include "../include/updater.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -103,6 +104,9 @@ struct Module {
     const Field* body; int body_count;
 };
 struct Category { const char* name; const Module* modules; int module_count; };
+
+struct PopupState { const Module* mod = nullptr; ImVec2 anchor{}; bool just_opened = false; float anim = 0.f; int cat_ix = 0; };
+extern PopupState g_popup;
 
 #define F_TOGGLE(lbl, ptr)                {Fty::Toggle,  lbl, (void*)&(ptr), 0, 0, 0, nullptr, nullptr, 0}
 #define F_SLIDF(lbl, ptr, mn, mx, s, fmt) {Fty::SliderF, lbl, (void*)&(ptr), mn, mx, s, fmt, nullptr, 0}
@@ -929,7 +933,8 @@ static bool module_row(const char* name, bool* enabled, bool has_body) {
     ImGuiID id = win->GetID("row");
     if (!ImGui::ItemAdd(bb, id)) { ImGui::PopID(); return false; }
 
-    bool hovered = hit(bb);
+    bool popup_open = (g_popup.mod != nullptr);
+    bool hovered = !popup_open && hit(bb);
     bool pressed = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     bool right   = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
 
@@ -2514,8 +2519,7 @@ static void draw_players_pane(const std::vector<PlayerInfo>* players,
     ImGui::PopStyleColor();
 }
 
-struct PopupState { const Module* mod = nullptr; ImVec2 anchor{}; bool just_opened = false; float anim = 0.f; int cat_ix = 0; };
-static PopupState g_popup;
+PopupState g_popup;
 
 static ImVec2 g_main_pos{};
 static ImVec2 g_main_size{};
@@ -2726,26 +2730,49 @@ static void draw_popup() {
         ImGui::EndChild();
     } else {
 
+        const float COL_PAD_X = 14.f;
+        const float COL_PAD_Y = 12.f;
         float col_w = (body_w - BODY_PAD_X * 2.f - COL_GAP) * 0.5f;
+        float item_w = col_w - COL_PAD_X * 2.f;
+        if (item_w < 60.f) item_w = 60.f;
 
         ImGui::BeginChild("##popbody", {body_w, body_h}, false,
-            ImGuiWindowFlags_NoBackground);
+            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoScrollbar |
+            ImGuiWindowFlags_NoScrollWithMouse);
 
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {COL_PAD_X, COL_PAD_Y});
+
+        ImVec2 colA_pos = ImGui::GetCursorScreenPos();
         ImGui::BeginChild("##popcolA", {col_w, body_h - BODY_PAD_Y * 2.f}, false,
             ImGuiWindowFlags_NoBackground);
+        ImGui::PushClipRect(colA_pos,
+                            {colA_pos.x + col_w, colA_pos.y + body_h - BODY_PAD_Y * 2.f},
+                            true);
+        ImGui::PushItemWidth(item_w);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ROW_GAP});
         for (int i = 0; i < split_at; i++) draw_field(m.body[i]);
         ImGui::PopStyleVar();
+        ImGui::PopItemWidth();
+        ImGui::PopClipRect();
         ImGui::EndChild();
 
         ImGui::SameLine(0.f, COL_GAP);
 
+        ImVec2 colB_pos = ImGui::GetCursorScreenPos();
         ImGui::BeginChild("##popcolB", {col_w, body_h - BODY_PAD_Y * 2.f}, false,
             ImGuiWindowFlags_NoBackground);
+        ImGui::PushClipRect(colB_pos,
+                            {colB_pos.x + col_w, colB_pos.y + body_h - BODY_PAD_Y * 2.f},
+                            true);
+        ImGui::PushItemWidth(item_w);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, {0, ROW_GAP});
         for (int i = split_at; i < m.body_count; i++) draw_field(m.body[i]);
         ImGui::PopStyleVar();
+        ImGui::PopItemWidth();
+        ImGui::PopClipRect();
         ImGui::EndChild();
+
+        ImGui::PopStyleVar();
 
         ImGui::EndChild();
 
@@ -2907,11 +2934,18 @@ static void draw_mode_picker() {
     const float BASE_X = wp.x + (ws.x - TOTAL) * 0.5f;
     const float BASE_Y = wp.y + 180.f;
 
+    bool upd_checked, upd_avail, upd_dismissed;
+    {
+        std::string _l, _c;
+        updater::snapshot(upd_checked, upd_avail, upd_dismissed, _l, _c);
+    }
+    bool block_clicks = upd_checked && upd_avail && !upd_dismissed;
+
     for (int i = 0; i < 2; i++) {
         ImVec2 mn{BASE_X + i * (CW + GAP), BASE_Y};
         ImVec2 mx{mn.x + CW, mn.y + CH};
         ImRect r(mn, mx);
-        bool hov = hit(r);
+        bool hov = !block_clicks && hit(r);
         bool press = hov && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
         ImGuiID cid = ImGui::GetCurrentWindow()->GetID(CARDS[i].name);
@@ -2991,6 +3025,82 @@ static void draw_mode_picker() {
     dl->AddText({wp.x + (ws.x - cz.x) * 0.5f, wp.y + ws.y - 34.f},
                 C_TEXT_DIM, credit);
     if (g_font_small) ImGui::PopFont();
+
+    {
+        bool checked, avail, dismissed;
+        std::string latest, current;
+        updater::snapshot(checked, avail, dismissed, latest, current);
+        if (checked && avail && !dismissed) {
+            ImDrawList* fg_dl = ImGui::GetForegroundDrawList();
+            fg_dl->AddRectFilled({0, 0}, io.DisplaySize, IM_COL32(0, 0, 0, 140));
+
+            const float DW = 480.f, DH = 230.f;
+            ImVec2 dmn{(io.DisplaySize.x - DW) * 0.5f, (io.DisplaySize.y - DH) * 0.5f};
+            ImVec2 dmx{dmn.x + DW, dmn.y + DH};
+
+            fg_dl->AddRectFilled(dmn, dmx, IM_COL32(6, 6, 8, 250), 14.f);
+            fg_dl->AddRect(dmn, dmx, with_alpha(C_PINK, 0.55f), 14.f, 0, 1.5f);
+            fg_dl->AddRectFilledMultiColor(
+                {dmn.x, dmn.y}, {dmx.x, dmn.y + 2.f},
+                with_alpha(C_PINK_DEEP, 0.7f), with_alpha(C_PINK, 1.f),
+                with_alpha(C_PINK, 1.f),      with_alpha(C_PINK_DEEP, 0.7f));
+
+            if (g_font_header) ImGui::PushFont(g_font_header);
+            const char* t = "update available";
+            ImVec2 tsz = ImGui::CalcTextSize(t);
+            fg_dl->AddText({dmn.x + (DW - tsz.x) * 0.5f, dmn.y + 22.f}, C_PINK, t);
+            if (g_font_header) ImGui::PopFont();
+
+            if (g_font_medium) ImGui::PushFont(g_font_medium);
+            char line[160];
+            std::snprintf(line, sizeof(line), "v%s  ->  v%s", current.c_str(), latest.c_str());
+            ImVec2 lsz = ImGui::CalcTextSize(line);
+            fg_dl->AddText({dmn.x + (DW - lsz.x) * 0.5f, dmn.y + 74.f}, C_TEXT, line);
+            if (g_font_medium) ImGui::PopFont();
+
+            if (g_font_small) ImGui::PushFont(g_font_small);
+            const char* sub = "download the latest build from GitHub releases";
+            ImVec2 ssz = ImGui::CalcTextSize(sub);
+            fg_dl->AddText({dmn.x + (DW - ssz.x) * 0.5f, dmn.y + 108.f}, C_TEXT_DIM, sub);
+            if (g_font_small) ImGui::PopFont();
+
+            const float BW = 190.f, BH = 42.f, GAP = 14.f;
+            float total = BW * 2 + GAP;
+            float bx = dmn.x + (DW - total) * 0.5f;
+            float by = dmx.y - BH - 22.f;
+
+            ImRect bDL({bx, by}, {bx + BW, by + BH});
+            bool dhov = hit(bDL);
+            ImGuiID did = ImGui::GetCurrentWindow()->GetID("updd");
+            float dth = anim_to(did, dhov ? 1.f : 0.f, 18.f);
+            ImU32 dbg_l = blend(C_PINK_DEEP, C_PINK, dth);
+            ImU32 dbg_r = blend(C_PINK, IM_COL32(255, 160, 210, 255), dth);
+            fg_dl->AddRectFilledMultiColor(bDL.Min, bDL.Max, dbg_l, dbg_r, dbg_r, dbg_l);
+            fg_dl->AddRect(bDL.Min, bDL.Max, C_PINK, 8.f, 0, 1.5f);
+            const char* dlbl = "Download from GitHub";
+            ImVec2 dlz = ImGui::CalcTextSize(dlbl);
+            fg_dl->AddText({bDL.Min.x + (BW - dlz.x) * 0.5f,
+                            bDL.Min.y + (BH - dlz.y) * 0.5f - 1.f}, C_INK, dlbl);
+            if (dhov && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                updater::open_releases_page();
+            }
+
+            ImRect bSK({bx + BW + GAP, by}, {bx + BW + GAP + BW, by + BH});
+            bool shov = hit(bSK);
+            ImGuiID sid = ImGui::GetCurrentWindow()->GetID("updskip");
+            float sth = anim_to(sid, shov ? 1.f : 0.f, 18.f);
+            ImU32 sbg = blend(IM_COL32(24, 24, 28, 255), IM_COL32(40, 40, 46, 255), sth);
+            fg_dl->AddRectFilled(bSK.Min, bSK.Max, sbg, 8.f);
+            fg_dl->AddRect(bSK.Min, bSK.Max, C_LINE_HAIR, 8.f, 0, 1.f);
+            const char* slbl = "Later";
+            ImVec2 slz = ImGui::CalcTextSize(slbl);
+            fg_dl->AddText({bSK.Min.x + (BW - slz.x) * 0.5f,
+                            bSK.Min.y + (BH - slz.y) * 0.5f - 1.f}, C_TEXT_MUTE, slbl);
+            if (shov && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                updater::dismiss();
+            }
+        }
+    }
 
     ImGui::End();
 }

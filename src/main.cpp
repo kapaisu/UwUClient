@@ -6,6 +6,7 @@
 #include "../include/math.hpp"
 #include "../include/aimbot.hpp"
 #include "../include/spotify.hpp"
+#include "../include/updater.hpp"
 #include "../include/teleport.hpp"
 #include "../include/features.hpp"
 #include "../include/scanner.hpp"
@@ -540,6 +541,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     }).detach();
     aimbot::start_thread();
     spotify::start();
+    updater::check_async();
 
     std::thread(check::run).detach();
 
