@@ -251,6 +251,13 @@ static const Field FLD_CROSS[]  = {
     F_SEG("Style",  esp::cfg.crosshair_style, OPTS_CROSS),
     F_SLIDF("Size", esp::cfg.crosshair_size, 2.f, 30.f, 1.f, "%.0f"),
 };
+static const Field FLD_WORLD_CHAMS[] = {
+    F_SLIDF("Red",          esp::cfg.world_chams_color.x,    0.f, 1.f, 0.01f, "%.2f"),
+    F_SLIDF("Green",        esp::cfg.world_chams_color.y,    0.f, 1.f, 0.01f, "%.2f"),
+    F_SLIDF("Blue",         esp::cfg.world_chams_color.z,    0.f, 1.f, 0.01f, "%.2f"),
+    F_SLIDF("Transparency", esp::cfg.world_chams_transparency, 0.f, 1.f, 0.01f, "%.2f"),
+    F_SLIDF("Reflectance",  esp::cfg.world_chams_reflectance,  0.f, 1.f, 0.01f, "%.2f"),
+};
 static const Module MODS_ESP[] = {
     {"ESP (master)",      &esp::cfg.enabled,          FLD_BOX,   IM_ARRAYSIZE(FLD_BOX)},
     {"Names",             &esp::cfg.draw_name,        nullptr, 0},
@@ -266,7 +273,8 @@ static const Module MODS_ESP[] = {
     {"Target line",       &esp::cfg.esp_target_line,  nullptr, 0},
     {"Look-at rays",      &esp::cfg.draw_lookat,      FLD_LOOK, IM_ARRAYSIZE(FLD_LOOK)},
     {"Velocity lines",    &esp::cfg.draw_velocity,    FLD_VEL,  IM_ARRAYSIZE(FLD_VEL)},
-    {"Chams",             &esp::cfg.chams_enabled,    nullptr, 0},
+    {"Chams (screen)",    &esp::cfg.chams_enabled,    nullptr, 0},
+    {"World chams",       &esp::cfg.world_chams_enabled, FLD_WORLD_CHAMS, IM_ARRAYSIZE(FLD_WORLD_CHAMS)},
     {"FOV circle",        &esp::cfg.draw_fov,         FLD_FOV,  IM_ARRAYSIZE(FLD_FOV)},
     {"Crosshair",         &esp::cfg.draw_crosshair,   FLD_CROSS,IM_ARRAYSIZE(FLD_CROSS)},
     {"Text shadow",       &esp::cfg.text_shadow,      nullptr, 0},
@@ -296,11 +304,18 @@ static const Field FLD_GRAV[] = { F_SLIDF("Force", esp::cfg.world_gravity, 0.f, 
 static const Field FLD_TICK[] = {
     F_SLIDF("Steps/sec", esp::cfg.tickrate_amount, 1.f, 500.f, 1.f, "%.0f"),
 };
+static const Field FLD_ANIMSPEED[] = {
+    F_SLIDF("Multiplier", esp::cfg.anim_speed_mult, 0.1f, 10.f, 0.1f, "%.1fx"),
+};
 static const Module MODS_WORLD[] = {
-    {"Time of day", &esp::cfg.world_time_enabled,    FLD_TIME, IM_ARRAYSIZE(FLD_TIME)},
-    {"Gravity",     &esp::cfg.world_gravity_enabled, FLD_GRAV, IM_ARRAYSIZE(FLD_GRAV)},
-    {"Tickrate hack", &esp::cfg.tickrate_enabled,    FLD_TICK, IM_ARRAYSIZE(FLD_TICK)},
-    {"Streamproof", &esp::cfg.streamproof,           nullptr, 0},
+    {"Clear vision",   &esp::cfg.clear_vision,          nullptr, 0},
+    {"Anti-void",      &esp::cfg.anti_void,             nullptr, 0},
+    {"Instant prompts",&esp::cfg.prompts_instant,       nullptr, 0},
+    {"Anim speed",     &esp::cfg.anim_speed_enabled,    FLD_ANIMSPEED, IM_ARRAYSIZE(FLD_ANIMSPEED)},
+    {"Time of day",    &esp::cfg.world_time_enabled,    FLD_TIME, IM_ARRAYSIZE(FLD_TIME)},
+    {"Gravity",        &esp::cfg.world_gravity_enabled, FLD_GRAV, IM_ARRAYSIZE(FLD_GRAV)},
+    {"Tickrate hack",  &esp::cfg.tickrate_enabled,      FLD_TICK, IM_ARRAYSIZE(FLD_TICK)},
+    {"Streamproof",    &esp::cfg.streamproof,           nullptr, 0},
 };
 
 static const Field FLD_FLY[] = {

@@ -508,6 +508,19 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     if (esp::load_config(config_path.c_str()))
         printf("[UwUClient] Loaded saved config.\n");
 
+    std::thread([config_path]() {
+        auto next = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (overlay::is_running()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            auto now = std::chrono::steady_clock::now();
+            if (now >= next) {
+                esp::save_config(config_path.c_str());
+                next = now + std::chrono::seconds(5);
+            }
+        }
+        esp::save_config(config_path.c_str());
+    }).detach();
+
     auto sanitize = [](std::string s) {
         for (auto& ch : s) if (ch < 32 || ch == '\\' || ch == '/' || ch == ':' ||
                                ch == '*' || ch == '?' || ch == '"' || ch == '<' ||

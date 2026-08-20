@@ -9,6 +9,12 @@
 #include "games.hpp"
 #include <vector>
 #include <chrono>
+#include <functional>
+#include <unordered_map>
+#include <mutex>
+
+extern std::vector<PlayerInfo> g_players;
+extern std::mutex              g_players_mtx;
 
 namespace feat {
 
@@ -477,6 +483,192 @@ inline void apply_self_mods() {
                 wpm<float>(w + offsets::World::Gravity, orig_grav);
                 ticks--;
             }
+        }
+    }
+
+    {
+        static bool cv_orig_saved = false;
+        static float cv_fog_end = 0, cv_fog_start = 0, cv_brightness = 0, cv_exposure = 0;
+        static double cv_clock = 0;
+        static uint8_t cv_shadows = 1;
+        static float cv_water_trans = 0, cv_grass_len = 0;
+        static uintptr_t g_cached_terrain = 0;
+        if (!g_cached_terrain) {
+            RbxDataModel dm = RbxDataModel::get();
+            if (dm.valid()) {
+                RbxInstance ws = dm.get_service("Workspace");
+                if (ws.valid()) g_cached_terrain = ws.find_child_by_class("Terrain").ptr;
+            }
+        }
+        if (esp::cfg.clear_vision) {
+            if (uintptr_t l = ensure_lighting()) {
+                if (!cv_orig_saved) {
+                    if (offsets::Lighting::FogEnd)               cv_fog_end     = rpm<float>(l + offsets::Lighting::FogEnd);
+                    if (offsets::Lighting::FogStart)             cv_fog_start   = rpm<float>(l + offsets::Lighting::FogStart);
+                    if (offsets::Lighting::Brightness)           cv_brightness  = rpm<float>(l + offsets::Lighting::Brightness);
+                    if (offsets::Lighting::ExposureCompensation) cv_exposure    = rpm<float>(l + offsets::Lighting::ExposureCompensation);
+                    if (offsets::Lighting::ClockTime)            cv_clock       = rpm<double>(l + offsets::Lighting::ClockTime);
+                    if (offsets::Lighting::GlobalShadows)        cv_shadows     = rpm<uint8_t>(l + offsets::Lighting::GlobalShadows);
+                    if (g_cached_terrain && offsets::Terrain::WaterTransparency)
+                        cv_water_trans = rpm<float>(g_cached_terrain + offsets::Terrain::WaterTransparency);
+                    if (g_cached_terrain && offsets::Terrain::GrassLength)
+                        cv_grass_len   = rpm<float>(g_cached_terrain + offsets::Terrain::GrassLength);
+                    cv_orig_saved = true;
+                }
+                if (offsets::Lighting::FogEnd)               wpm<float>(l + offsets::Lighting::FogEnd, 100000.f);
+                if (offsets::Lighting::FogStart)             wpm<float>(l + offsets::Lighting::FogStart, 100000.f);
+                if (offsets::Lighting::ClockTime)            wpm<double>(l + offsets::Lighting::ClockTime, 720.0);
+                if (offsets::Lighting::Brightness)           wpm<float>(l + offsets::Lighting::Brightness, 2.5f);
+                if (offsets::Lighting::ExposureCompensation) wpm<float>(l + offsets::Lighting::ExposureCompensation, 0.5f);
+                if (offsets::Lighting::GlobalShadows)        wpm<uint8_t>(l + offsets::Lighting::GlobalShadows, 0);
+            }
+            if (g_cached_terrain) {
+                if (offsets::Terrain::WaterTransparency) wpm<float>(g_cached_terrain + offsets::Terrain::WaterTransparency, 1.f);
+                if (offsets::Terrain::GrassLength)       wpm<float>(g_cached_terrain + offsets::Terrain::GrassLength, 0.f);
+            }
+        } else if (cv_orig_saved) {
+            if (uintptr_t l = ensure_lighting()) {
+                if (offsets::Lighting::FogEnd)               wpm<float>(l + offsets::Lighting::FogEnd, cv_fog_end);
+                if (offsets::Lighting::FogStart)             wpm<float>(l + offsets::Lighting::FogStart, cv_fog_start);
+                if (offsets::Lighting::Brightness)           wpm<float>(l + offsets::Lighting::Brightness, cv_brightness);
+                if (offsets::Lighting::ExposureCompensation) wpm<float>(l + offsets::Lighting::ExposureCompensation, cv_exposure);
+                if (offsets::Lighting::ClockTime)            wpm<double>(l + offsets::Lighting::ClockTime, cv_clock);
+                if (offsets::Lighting::GlobalShadows)        wpm<uint8_t>(l + offsets::Lighting::GlobalShadows, cv_shadows);
+            }
+            if (g_cached_terrain) {
+                if (offsets::Terrain::WaterTransparency) wpm<float>(g_cached_terrain + offsets::Terrain::WaterTransparency, cv_water_trans);
+                if (offsets::Terrain::GrassLength)       wpm<float>(g_cached_terrain + offsets::Terrain::GrassLength, cv_grass_len);
+            }
+            cv_orig_saved = false;
+        }
+    }
+
+    {
+        static bool av_orig_saved = false;
+        static float av_orig_height = 0;
+        if (esp::cfg.anti_void) {
+            if (uintptr_t w = ensure_world()) {
+                if (!av_orig_saved && offsets::World::FallenPartsDestroyHeight) {
+                    av_orig_height = rpm<float>(w + offsets::World::FallenPartsDestroyHeight);
+                    av_orig_saved = true;
+                }
+                if (offsets::World::FallenPartsDestroyHeight)
+                    wpm<float>(w + offsets::World::FallenPartsDestroyHeight, -1e9f);
+            }
+        } else if (av_orig_saved) {
+            if (uintptr_t w = ensure_world())
+                if (offsets::World::FallenPartsDestroyHeight)
+                    wpm<float>(w + offsets::World::FallenPartsDestroyHeight, av_orig_height);
+            av_orig_saved = false;
+        }
+    }
+
+    if (esp::cfg.prompts_instant || esp::cfg.anim_speed_enabled) {
+        static std::vector<uintptr_t> g_prompts;
+        static std::vector<uintptr_t> g_animators;
+        static std::chrono::steady_clock::time_point g_scan_at{};
+        auto now = std::chrono::steady_clock::now();
+        if (now - g_scan_at > std::chrono::milliseconds(1500)) {
+            g_scan_at = now;
+            g_prompts.clear();
+            g_animators.clear();
+            RbxDataModel dm = RbxDataModel::get();
+            if (dm.valid()) {
+                RbxInstance ws = dm.get_service("Workspace");
+                if (ws.valid()) {
+                    std::function<void(RbxInstance, int)> walk = [&](RbxInstance node, int depth) {
+                        if (depth < 0) return;
+                        if (g_prompts.size() > 512 || g_animators.size() > 128) return;
+                        for (auto& c : node.get_children()) {
+                            std::string cls = c.get_class();
+                            if (cls == "ProximityPrompt") g_prompts.push_back(c.ptr);
+                            else if (cls == "Animator") g_animators.push_back(c.ptr);
+                            else walk(c, depth - 1);
+                        }
+                    };
+                    walk(ws, 5);
+                }
+            }
+        }
+        if (esp::cfg.prompts_instant) {
+            for (uintptr_t p : g_prompts) {
+                if (offsets::ProximityPrompt::HoldDuration)
+                    wpm<float>(p + offsets::ProximityPrompt::HoldDuration, 0.f);
+                if (offsets::ProximityPrompt::RequiresLineOfSight)
+                    wpm<uint8_t>(p + offsets::ProximityPrompt::RequiresLineOfSight, 0);
+            }
+        }
+        if (esp::cfg.anim_speed_enabled && offsets::Animator::ActiveAnimations &&
+            offsets::AnimationTrack::Speed) {
+            float mult = esp::cfg.anim_speed_mult < 0.1f ? 0.1f : esp::cfg.anim_speed_mult;
+            for (uintptr_t a : g_animators) {
+                uintptr_t arr = rpm<uintptr_t>(a + offsets::Animator::ActiveAnimations);
+                uintptr_t end = rpm<uintptr_t>(a + offsets::Animator::ActiveAnimations + 0x8);
+                if (!arr || end <= arr) continue;
+                size_t count = (end - arr) / 8;
+                if (count > 32) count = 32;
+                for (size_t i = 0; i < count; i++) {
+                    uintptr_t tr = rpm<uintptr_t>(arr + i * 8);
+                    if (tr) wpm<float>(tr + offsets::AnimationTrack::Speed, mult);
+                }
+            }
+        }
+    }
+
+    {
+        struct Color3F { float r, g, b; };
+        struct PartOrig { uintptr_t part; Color3F col; float trans; float refl; };
+        struct CharCache { std::vector<PartOrig> parts; };
+        static std::unordered_map<uintptr_t, CharCache> g_pc;
+        static std::chrono::steady_clock::time_point g_pc_refresh{};
+        static bool wc_was_on = false;
+        auto now2 = std::chrono::steady_clock::now();
+        bool refresh = now2 - g_pc_refresh > std::chrono::milliseconds(2000);
+
+        if (esp::cfg.world_chams_enabled) {
+            if (refresh) g_pc_refresh = now2;
+            std::vector<PlayerInfo> snap;
+            {
+                std::lock_guard<std::mutex> lk(g_players_mtx);
+                snap = g_players;
+            }
+            Color3F col{esp::cfg.world_chams_color.x, esp::cfg.world_chams_color.y, esp::cfg.world_chams_color.z};
+            for (auto& p : snap) {
+                if (!p.valid || !p.cached_char_ptr) continue;
+                auto& cc = g_pc[p.cached_char_ptr];
+                if (cc.parts.empty() || refresh) {
+                    cc.parts.clear();
+                    RbxInstance ch{p.cached_char_ptr};
+                    for (auto& c : ch.get_children()) {
+                        std::string cls = c.get_class();
+                        if (cls == "Part" || cls == "MeshPart" || cls == "UnionOperation" ||
+                            cls == "WedgePart" || cls == "TrussPart") {
+                            PartOrig po{};
+                            po.part  = c.ptr;
+                            po.col   = rpm<Color3F>(c.ptr + 0x1A8);
+                            po.trans = rpm<float>(c.ptr + 0x130);
+                            po.refl  = rpm<float>(c.ptr + 0x10C);
+                            cc.parts.push_back(po);
+                        }
+                    }
+                }
+                for (auto& po : cc.parts) {
+                    wpm<Color3F>(po.part + 0x1A8, col);
+                    wpm<float>(po.part + 0x130, esp::cfg.world_chams_transparency);
+                    wpm<float>(po.part + 0x10C, esp::cfg.world_chams_reflectance);
+                }
+            }
+            wc_was_on = true;
+        } else if (wc_was_on) {
+            for (auto& kv : g_pc) {
+                for (auto& po : kv.second.parts) {
+                    wpm<Color3F>(po.part + 0x1A8, po.col);
+                    wpm<float>(po.part + 0x130, po.trans);
+                    wpm<float>(po.part + 0x10C, po.refl);
+                }
+            }
+            g_pc.clear();
+            wc_was_on = false;
         }
     }
 

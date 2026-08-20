@@ -71,6 +71,18 @@ namespace esp {
         float spotify_hud_w       = 340.f;
         float spotify_hud_h       = 110.f;
 
+        bool  world_chams_enabled      = false;
+        ImVec4 world_chams_color       = {1.f, 0.3f, 0.85f, 1.f};
+        float world_chams_transparency = 0.f;
+        float world_chams_reflectance  = 0.4f;
+
+        bool  clear_vision      = false;
+        bool  anti_void         = false;
+        bool  prompts_instant   = false;
+
+        bool  anim_speed_enabled = false;
+        float anim_speed_mult    = 2.f;
+
         bool  speed_enabled = false;
         float speed_value   = 16.f;
         bool  jump_enabled  = false;

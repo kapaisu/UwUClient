@@ -113,13 +113,25 @@ namespace aimbot {
     static std::chrono::steady_clock::time_point g_wall_cache_at{};
     static std::mutex g_wall_cache_mtx;
 
+    static bool model_has_humanoid(RbxInstance model) {
+        for (auto& c : model.get_children()) {
+            if (c.get_class() == "Humanoid") return true;
+        }
+        return false;
+    }
+
     static void collect_parts_rec(RbxInstance root, std::vector<WallPart>& out, int depth) {
         if (depth < 0 || !root.valid()) return;
         if (out.size() > 2048) return;
         for (auto& c : root.get_children()) {
             if (out.size() > 2048) return;
             std::string cls = c.get_class();
-            if (cls == "Model" || cls == "Folder") {
+            if (cls == "Model") {
+                if (model_has_humanoid(c)) continue;
+                collect_parts_rec(c, out, depth - 1);
+                continue;
+            }
+            if (cls == "Folder") {
                 collect_parts_rec(c, out, depth - 1);
                 continue;
             }
@@ -129,7 +141,7 @@ namespace aimbot {
             uintptr_t prim = rpm<uintptr_t>(c.ptr + offsets::BasePart::Primitive);
             if (!prim) continue;
             Vec3 sz = rpm<Vec3>(prim + offsets::Primitive::Size);
-            if (sz.x < 0.5f && sz.y < 0.5f && sz.z < 0.5f) continue;
+            if (sz.x < 2.0f && sz.y < 2.0f && sz.z < 2.0f) continue;
             Vec3 pos = rpm<Vec3>(prim + offsets::Primitive::Position);
             out.push_back({pos, {sz.x * 0.5f, sz.y * 0.5f, sz.z * 0.5f}});
         }
@@ -182,7 +194,7 @@ namespace aimbot {
                 if (t_near > t_far) { miss = true; break; }
             }
             if (miss) continue;
-            if (t_near > 1.5f && t_near < dist - 1.5f) return false;
+            if (t_near > 2.5f && t_near < dist - 5.0f) return false;
         }
         return true;
     }
@@ -1106,6 +1118,8 @@ namespace aimbot {
                             else score = 3.f;
                             score += (dist / 10000.f);
                         }
+
+                        if (p.player_ptr == locked_ptr) score *= 0.6f;
 
                         if (score < best_score) {
                             best_score = score;

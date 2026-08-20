@@ -52,7 +52,7 @@ static void async_beep(int freq, int dur) {
     std::thread([freq, dur]() { Beep((DWORD)freq, (DWORD)dur); }).detach();
 }
 
-static constexpr uint32_t CFG_MAGIC = 0x54455845;
+static constexpr uint32_t CFG_MAGIC = 0x55575503;
 
 bool save_config(const char* path) {
     FILE* f = fopen(path, "wb");

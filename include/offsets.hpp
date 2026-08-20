@@ -102,13 +102,37 @@ namespace offsets {
     namespace World {
         inline uintptr_t Gravity          = 0x210;
         inline uintptr_t WorldStepsPerSec = 0x680;
+        inline uintptr_t FallenPartsDestroyHeight = 0x208;
     }
 
     namespace Lighting {
         inline uintptr_t ClockTime      = 0x1A8;
         inline uintptr_t Brightness     = 0x110;
         inline uintptr_t FogEnd         = 0x124;
+        inline uintptr_t FogStart       = 0x130;
         inline uintptr_t OutdoorAmbient = 0xF8;
+        inline uintptr_t ExposureCompensation = 0x124;
+        inline uintptr_t GlobalShadows  = 0x144;
+    }
+
+    namespace Terrain {
+        inline uintptr_t WaterTransparency = 0x1F4;
+        inline uintptr_t GrassLength       = 0x1E8;
+    }
+
+    namespace ProximityPrompt {
+        inline uintptr_t HoldDuration            = 0x120;
+        inline uintptr_t MaxActivationDistance   = 0x128;
+        inline uintptr_t Enabled                 = 0x136;
+        inline uintptr_t RequiresLineOfSight     = 0x137;
+    }
+
+    namespace Animator {
+        inline uintptr_t ActiveAnimations = 0xB80;
+    }
+
+    namespace AnimationTrack {
+        inline uintptr_t Speed = 0xD4;
     }
 
     namespace Camera {
@@ -291,6 +315,18 @@ namespace offsets {
 
             else if (key == "World::worldStepsPerSec" ||
                      key == "World::WorldStepsPerSec")      put(World::WorldStepsPerSec, v);
+            else if (key == "World::FallenPartsDestroyHeight") put(World::FallenPartsDestroyHeight, v);
+            else if (key == "Lighting::FogStart")              put(Lighting::FogStart, v);
+            else if (key == "Lighting::ExposureCompensation")  put(Lighting::ExposureCompensation, v);
+            else if (key == "Lighting::GlobalShadows")         put(Lighting::GlobalShadows, v);
+            else if (key == "Terrain::WaterTransparency")      put(Terrain::WaterTransparency, v);
+            else if (key == "Terrain::GrassLength")            put(Terrain::GrassLength, v);
+            else if (key == "ProximityPrompt::HoldDuration")           put(ProximityPrompt::HoldDuration, v);
+            else if (key == "ProximityPrompt::MaxActivationDistance")  put(ProximityPrompt::MaxActivationDistance, v);
+            else if (key == "ProximityPrompt::Enabled")               put(ProximityPrompt::Enabled, v);
+            else if (key == "ProximityPrompt::RequiresLineOfSight")   put(ProximityPrompt::RequiresLineOfSight, v);
+            else if (key == "Animator::ActiveAnimations")             put(Animator::ActiveAnimations, v);
+            else if (key == "AnimationTrack::Speed")                  put(AnimationTrack::Speed, v);
 
             else if (key == "ValueBase::Value" ||
                      key == "NumberValue::Value" ||
