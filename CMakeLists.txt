@@ -49,6 +49,15 @@ target_compile_definitions(UwUClient PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 
+set(_kdrv_sys "${CMAKE_SOURCE_DIR}/driver/uwudrv.sys")
+if(EXISTS "${_kdrv_sys}")
+    target_compile_definitions(UwUClient PRIVATE UWU_HAS_DRIVER)
+    set_property(SOURCE resources.rc APPEND PROPERTY COMPILE_DEFINITIONS UWU_HAS_DRIVER)
+    message(STATUS "Embedding driver: ${_kdrv_sys}")
+else()
+    message(STATUS "No driver/uwudrv.sys yet (drop the compiled .sys there to embed it).")
+endif()
+
 set_target_properties(UwUClient PROPERTIES OUTPUT_NAME "UwUClient")
 
 if(MSVC)

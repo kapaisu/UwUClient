@@ -29,13 +29,23 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_DESTROY) { g_running = false; return 0; }
     if (msg == WM_SIZE && g_swap_chain) {
         if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
-        g_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-        ID3D11Texture2D* buf = nullptr;
-        g_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&buf);
-        if (buf) {
-            g_device->CreateRenderTargetView(buf, nullptr, &g_rtv);
-            buf->Release();
+        ImGui_ImplDX11_InvalidateDeviceObjects();
+        HRESULT hr = g_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        if (SUCCEEDED(hr)) {
+            ID3D11Texture2D* buf = nullptr;
+            if (SUCCEEDED(g_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&buf)) && buf) {
+                g_device->CreateRenderTargetView(buf, nullptr, &g_rtv);
+                buf->Release();
+            }
         }
+        ImGui_ImplDX11_CreateDeviceObjects();
+        return 0;
+    }
+    if (msg == WM_DPICHANGED) {
+        const RECT* r = reinterpret_cast<const RECT*>(lp);
+        SetWindowPos(hwnd, nullptr, r->left, r->top,
+                     r->right - r->left, r->bottom - r->top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
         return 0;
     }
     return DefWindowProcA(hwnd, msg, wp, lp);
@@ -85,6 +95,13 @@ static bool create_dx11(int w, int h) {
 
 bool init(HWND target_hwnd, HINSTANCE hInst) {
     g_inst = hInst;
+
+    HMODULE user32 = GetModuleHandleA("user32.dll");
+    if (user32) {
+        using SetCtxFn = BOOL (WINAPI*)(DPI_AWARENESS_CONTEXT);
+        auto SetCtx = (SetCtxFn)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        if (SetCtx) SetCtx(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
 
     RECT rc{};
     GetWindowRect(target_hwnd, &rc);
@@ -181,8 +198,11 @@ void begin_frame() {
 
 void end_frame() {
     ImGui::Render();
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    g_swap_chain->Present(1, 0);
+    if (g_rtv) ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+    HRESULT hr = g_swap_chain ? g_swap_chain->Present(1, 0) : E_FAIL;
+    if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
+        if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
+    }
 }
 
 void set_passthrough(bool on) {

@@ -4,6 +4,10 @@
 #define RT_MANIFEST_ID 1
 RT_MANIFEST_ID RT_MANIFEST "resources.manifest"
 
+#ifdef UWU_HAS_DRIVER
+UWUDRV_SYS RCDATA "driver/uwudrv.sys"
+#endif
+
 #define VER_FILE 2,0,0,0
 #define VER_PROD 2,0,0,0
 #define VER_FILE_STR "2.0.0.0"

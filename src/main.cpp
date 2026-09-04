@@ -7,6 +7,7 @@
 #include "../include/aimbot.hpp"
 #include "../include/spotify.hpp"
 #include "../include/updater.hpp"
+#include "../include/kdrv_loader.hpp"
 #include "../include/teleport.hpp"
 #include "../include/features.hpp"
 #include "../include/scanner.hpp"
@@ -16,6 +17,7 @@
 #include "../include/offset_updater.hpp"
 #include "../include/fflags.hpp"
 #include "../include/embedded_offsets.hpp"
+#include "../include/hitbox_expander.hpp"
 
 #include "../include/menu.hpp"
 #include "../include/check.hpp"
@@ -382,6 +384,14 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
     elog::ok("attached to RobloxPlayerBeta.exe pid=%lu base=0x%llX",
              mem::g_pid, (unsigned long long)mem::g_base);
 
+    if (mem::kdrv_ping()) {
+        if (mem::kdrv_attach(mem::g_pid)) {
+            elog::ok("kernel: uwudrv attached to pid=%lu, memory ops routed via kernel", mem::g_pid);
+        } else {
+            elog::warn("kernel: driver present but attach IOCTL failed, falling back to usermode");
+        }
+    }
+
     HWND roblox_hwnd = nullptr;
     for (int i = 0; i < 20; i++) {
         roblox_hwnd = find_roblox_window(mem::g_pid);
@@ -553,6 +563,7 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         }
     }).detach();
     aimbot::start_thread();
+    hitbox_expander::start_thread();
     spotify::start();
     updater::check_async();
 
@@ -643,6 +654,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         }
         if (GetAsyncKeyState(VK_END) & 1) {
             esp::save_config((mem::exe_dir() + "\\config.bin").c_str());
+            mem::kdrv_detach();
+            mem::kdrv_close();
+            kdrv_loader::sc_unload();
             overlay::quit();
             break;
         }

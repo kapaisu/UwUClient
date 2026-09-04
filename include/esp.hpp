@@ -287,6 +287,12 @@ namespace esp {
         bool  arsenal_rapid_fire  = false;
         bool  arsenal_inf_ammo    = false;
         float arsenal_fire_rate   = 20.f;
+
+        bool  kd_knife_curve            = false;
+        bool  kd_hitbox_expand          = false;
+        float kd_hitbox_size            = 15.f;
+        bool  kd_auto_throw             = false;
+        float kd_auto_throw_cooldown    = 350.f;
     };
 
     extern Config cfg;

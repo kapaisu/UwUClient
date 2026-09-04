@@ -8,6 +8,7 @@
 #include "../include/menu.hpp"
 #include "../include/roblox.hpp"
 #include "../include/games.hpp"
+#include "../include/knifeduels.hpp"
 #include <Windows.h>
 #include <thread>
 #include <chrono>
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
+#include <unordered_map>
 
 extern std::vector<PlayerInfo> g_players;
 extern Matrix4 g_view_matrix;
@@ -658,91 +660,10 @@ namespace aimbot {
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             } else if (games::active() == games::Id::Arsenal) {
-
-
-                if (!g_silent_camera || !offsets::Camera::CFrame ||
-                    !offsets::BasePart::Primitive ||
-                    !offsets::Primitive::CFrame) {
-                    if (once_per_sec(t_no_svc))
-                        elog::warn("silent(Arsenal): missing offset — cam=0x%llX cf=0x%llX prim=0x%llX pcf=0x%llX",
-                                   (unsigned long long)g_silent_camera,
-                                   (unsigned long long)offsets::Camera::CFrame,
-                                   (unsigned long long)offsets::BasePart::Primitive,
-                                   (unsigned long long)offsets::Primitive::CFrame);
-                    continue;
-                }
-
-                bool lmb_down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
-
-
-                static bool prev_lmb = false;
-                bool edge_fire  = lmb_down && !prev_lmb;
-                bool cont_fire  = esp::cfg.arsenal_continuous_flick && lmb_down;
-                prev_lmb = lmb_down;
-
-                bool should_fire =
-                    (!esp::cfg.silent_only_when_firing) ||
-                    edge_fire ||
-                    cont_fire;
-
-                if (!should_fire) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    continue;
-                }
-                if (!best->hrp_ptr) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    continue;
-                }
-                uintptr_t target_prim =
-                    rpm<uintptr_t>(best->hrp_ptr + offsets::BasePart::Primitive);
-                if (!target_prim) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    continue;
-                }
-                const uintptr_t tgt_cf_addr = target_prim + offsets::Primitive::CFrame;
-
-
-                RbxCFrame ucam{};
-                mem::vm_read(mem::g_proc,
-                    (LPCVOID)(g_silent_camera + offsets::Camera::CFrame),
-                    &ucam, sizeof(ucam), nullptr);
-                if (ucam.px == 0.f && ucam.py == 0.f && ucam.pz == 0.f) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-                    continue;
-                }
-
-                Vec3 fwd{ -ucam.r02, -ucam.r12, -ucam.r22 };
-                Vec3 eye{ ucam.px, ucam.py, ucam.pz };
-                Vec3 hit_pos{
-                    eye.x + fwd.x * 10.f,
-                    eye.y + fwd.y * 10.f,
-                    eye.z + fwd.z * 10.f
-                };
-
-
-                RbxCFrame torig{};
-                mem::vm_read(mem::g_proc, (LPCVOID)tgt_cf_addr,
-                                  &torig, sizeof(torig), nullptr);
-
-
-                RbxCFrame warp = torig;
-                warp.px = hit_pos.x;
-                warp.py = hit_pos.y;
-                warp.pz = hit_pos.z;
-
-
-                for (int i = 0; i < 8; i++)
-                    wpm<RbxCFrame>(tgt_cf_addr, warp);
-                wpm<RbxCFrame>(tgt_cf_addr, torig);
-
-                if (once_per_sec(t_ok)) {
-                    elog::ok("silent(Arsenal HRP warp %s): tgt='%s' hit_pos=(%.1f,%.1f,%.1f)",
-                        cont_fire ? "continuous" : "edge",
-                        best->name.c_str(), hit_pos.x, hit_pos.y, hit_pos.z);
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(
-                    cont_fire ? 2 : 8));
+                if (once_per_sec(t_no_svc))
+                    elog::warn("silent: Arsenal not supported (server-side hit validation). Use aimbot + trigger instead.");
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                continue;
             } else {
 
 
@@ -841,6 +762,7 @@ namespace aimbot {
         std::thread(silent_aim_thread).detach();
         std::thread(freeze_player_thread).detach();
         std::thread(tickrate_thread).detach();
+        knifeduels::start_thread();
         std::thread([]() {
 
             SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);

@@ -3,11 +3,99 @@
 #include <TlHelp32.h>
 #include <cstdint>
 #include <string>
+#include <atomic>
+#include <vector>
+#include "kdrv_protocol.h"
 
 namespace mem {
     inline HANDLE    g_proc = nullptr;
     inline DWORD     g_pid  = 0;
     inline uintptr_t g_base = 0;
+
+    inline HANDLE               g_kdrv          = INVALID_HANDLE_VALUE;
+    inline std::atomic<bool>    g_kdrv_active{false};
+
+    inline bool kdrv_open() {
+        if (g_kdrv != INVALID_HANDLE_VALUE) return true;
+        g_kdrv = CreateFileW(UWU_USERMODE_PATH,
+                             GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                             OPEN_EXISTING, 0, nullptr);
+        return g_kdrv != INVALID_HANDLE_VALUE;
+    }
+    inline void kdrv_close() {
+        if (g_kdrv != INVALID_HANDLE_VALUE) {
+            CloseHandle(g_kdrv);
+            g_kdrv = INVALID_HANDLE_VALUE;
+        }
+        g_kdrv_active.store(false);
+    }
+    inline bool kdrv_ping() {
+        if (!kdrv_open()) return false;
+        UwuPingResp r{0};
+        DWORD ret = 0;
+        BOOL ok = DeviceIoControl(g_kdrv, UWU_IOCTL_PING,
+                                  nullptr, 0, &r, sizeof(r), &ret, nullptr);
+        return ok && r.magic == UWU_PING_MAGIC;
+    }
+    inline bool kdrv_attach(DWORD pid) {
+        if (!kdrv_open()) return false;
+        UwuAttachReq req{pid};
+        DWORD ret = 0;
+        BOOL ok = DeviceIoControl(g_kdrv, UWU_IOCTL_ATTACH,
+                                  &req, sizeof(req), nullptr, 0, &ret, nullptr);
+        if (ok) g_kdrv_active.store(true);
+        return ok;
+    }
+    inline void kdrv_detach() {
+        if (g_kdrv == INVALID_HANDLE_VALUE) return;
+        DWORD ret = 0;
+        DeviceIoControl(g_kdrv, UWU_IOCTL_DETACH,
+                        nullptr, 0, nullptr, 0, &ret, nullptr);
+        g_kdrv_active.store(false);
+    }
+    inline BOOL kdrv_read(LPCVOID addr, LPVOID buf, SIZE_T size, SIZE_T* out) {
+        if (g_kdrv == INVALID_HANDLE_VALUE) return FALSE;
+        SIZE_T total = 0;
+        while (total < size) {
+            SIZE_T chunk = size - total;
+            if (chunk > UWU_MAX_IO) chunk = UWU_MAX_IO;
+            UwuIoReq req;
+            req.address = (unsigned long long)(uintptr_t)addr + total;
+            req.size    = (unsigned int)chunk;
+            DWORD ret = 0;
+            BOOL ok = DeviceIoControl(g_kdrv, UWU_IOCTL_READ,
+                                      &req, sizeof(req),
+                                      (PUCHAR)buf + total, (DWORD)chunk,
+                                      &ret, nullptr);
+            if (!ok || ret == 0) { if (out) *out = total; return FALSE; }
+            total += ret;
+            if (ret < chunk) break;
+        }
+        if (out) *out = total;
+        return total == size;
+    }
+    inline BOOL kdrv_write(LPCVOID addr, LPCVOID buf, SIZE_T size, SIZE_T* out) {
+        if (g_kdrv == INVALID_HANDLE_VALUE) return FALSE;
+        SIZE_T total = 0;
+        std::vector<unsigned char> pkt;
+        while (total < size) {
+            SIZE_T chunk = size - total;
+            if (chunk > UWU_MAX_IO) chunk = UWU_MAX_IO;
+            pkt.resize(sizeof(UwuIoReq) + chunk);
+            UwuIoReq* h = (UwuIoReq*)pkt.data();
+            h->address = (unsigned long long)(uintptr_t)addr + total;
+            h->size    = (unsigned int)chunk;
+            memcpy(pkt.data() + sizeof(UwuIoReq), (PUCHAR)buf + total, chunk);
+            DWORD ret = 0;
+            BOOL ok = DeviceIoControl(g_kdrv, UWU_IOCTL_WRITE,
+                                      pkt.data(), (DWORD)pkt.size(),
+                                      nullptr, 0, &ret, nullptr);
+            if (!ok) { if (out) *out = total; return FALSE; }
+            total += chunk;
+        }
+        if (out) *out = total;
+        return TRUE;
+    }
 
     using NtReadVM_t  = LONG (__stdcall*)(HANDLE, PVOID, PVOID, SIZE_T, PSIZE_T);
     using NtWriteVM_t = LONG (__stdcall*)(HANDLE, PVOID, LPCVOID, SIZE_T, PSIZE_T);
@@ -58,6 +146,7 @@ namespace mem {
 
     inline BOOL vm_read(HANDLE h, LPCVOID addr, LPVOID buf,
                         SIZE_T size, SIZE_T* out) {
+        if (g_kdrv_active.load() && kdrv_read(addr, buf, size, out)) return TRUE;
         if (!nt_read) init_syscalls();
         if (!nt_read) return FALSE;
         SIZE_T got = 0;
@@ -68,6 +157,7 @@ namespace mem {
 
     inline BOOL vm_write(HANDLE h, LPVOID addr, LPCVOID buf,
                          SIZE_T size, SIZE_T* out) {
+        if (g_kdrv_active.load() && kdrv_write(addr, buf, size, out)) return TRUE;
         if (!nt_write) init_syscalls();
         if (!nt_write) return FALSE;
         SIZE_T wrote = 0;

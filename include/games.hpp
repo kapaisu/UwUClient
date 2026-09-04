@@ -29,6 +29,7 @@ enum class Id : int {
     StrongestBG    = 10,
     BloxFruits     = 11,
     Rivals         = 12,
+    KnifeDuels     = 13,
     Count
 };
 
@@ -62,6 +63,8 @@ inline Id detect_from_place() {
 
     if (place == 2753915549LL)  return Id::BloxFruits;
 
+    if (place == 85024203742894LL) return Id::KnifeDuels;
+
     return Id::Universal;
 }
 inline const char* name_of(Id g) {
@@ -79,6 +82,7 @@ inline const char* name_of(Id g) {
         case Id::StrongestBG:   return "Strongest Battlegrounds";
         case Id::BloxFruits:    return "Blox Fruits";
         case Id::Rivals:        return "Rivals";
+        case Id::KnifeDuels:    return "Knife Duels";
         default:                return "?";
     }
 }
@@ -97,6 +101,7 @@ inline const char* tagline_of(Id g) {
         case Id::StrongestBG:   return "movement preset for Strongest BG";
         case Id::BloxFruits:    return "long-range ESP preset for Blox Fruits";
         case Id::Rivals:        return "silent aim via Camera.Viewport for Rivals";
+        case Id::KnifeDuels:    return "aimbot + ESP preset for Knife Duels";
         default:                return "";
     }
 }
@@ -570,6 +575,32 @@ inline void rivals_apply_defaults() {
     esp::cfg.max_dist              = 2000.f;
 }
 
+inline void knifeduels_apply_defaults() {
+    esp::cfg.silent_aim            = false;
+
+    esp::cfg.enabled               = true;
+    esp::cfg.team_check             = false;
+    esp::cfg.esp_team_check         = false;
+    esp::cfg.aim_visibility_check   = true;
+    esp::cfg.aim_bone               = 0;
+    esp::cfg.aim_priority           = 0;
+    esp::cfg.aim_key                = 0x02;
+    esp::cfg.fov_radius             = 160.f;
+    esp::cfg.aim_smooth             = 0.55f;
+    esp::cfg.aim_max_dist           = 300.f;
+    esp::cfg.max_dist               = 1200.f;
+
+    esp::cfg.aim_predict            = true;
+    esp::cfg.aim_prediction         = 0.12f;
+
+    esp::cfg.draw_name              = true;
+    esp::cfg.draw_distance          = true;
+    esp::cfg.draw_health            = true;
+    esp::cfg.draw_line              = false;
+    esp::cfg.box_style              = 2;
+    esp::cfg.esp_box_health_color   = true;
+}
+
 inline void bloxfruits_apply_defaults() {
     esp::cfg.enabled                = true;
     esp::cfg.team_check             = false;
@@ -643,6 +674,7 @@ inline void on_tick(uintptr_t hum) {
         case Id::StrongestBG:
         case Id::BloxFruits:
         case Id::DaHood:
+        case Id::KnifeDuels:
         case Id::Universal:
         default: break;
     }
