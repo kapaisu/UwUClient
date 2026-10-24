@@ -191,9 +191,9 @@ struct PlayerInfo {
     Vec3        char_look = {0.f, 0.f, 1.f};
 
     float       prev_health     = 0.f;
-    double      last_hit_time   = 0.0;
-    double      last_alert_time = 0.0;
-    bool        seen_dead       = false;
+    mutable double last_hit_time   = 0.0;
+    mutable double last_alert_time = 0.0;
+    mutable bool   seen_dead       = false;
 };
 
 inline std::vector<PlayerInfo> collect_player_instances(const RbxDataModel& dm,

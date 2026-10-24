@@ -77,7 +77,7 @@ void DebugTab::Render(const std::vector<PlayerInfo>& players) {
                 if (lower_name.find(filter_str) == std::string::npos) continue;
             }
 
-            ImGui::PushID(static_cast<int>(ent.player_ptr));
+            ImGui::PushID(static_cast<void*>((void*)ent.player_ptr));
 
             if (is_deactivated) {
                 ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.5f);

@@ -20,7 +20,7 @@ namespace aimbot {
             float odist = (op.position - cam_pos).length();
             if (odist + 3.f >= tdist) continue;
             Vec2 os = world_to_screen(vm, op.position, screen.x, screen.y);
-            if (os.x < 0.f && os.y < 0.f) continue;
+            if (os.x < 0.f || os.x > screen.x || os.y < 0.f || os.y > screen.y) continue;
             if (fabsf(s.x - os.x) < 25.f && fabsf(s.y - os.y) < 60.f) return false;
         }
         return true;

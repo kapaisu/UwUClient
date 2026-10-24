@@ -45,13 +45,13 @@ namespace offsets {
     }
 
     namespace Player {
-        inline uintptr_t Character = 0x2A0;
+        inline uintptr_t Character = 0x290;
         inline uintptr_t Team      = 0;
-        inline uintptr_t MinZoomDistance = 0x36C;
-        inline uintptr_t MaxZoomDistance = 0x368;
-        inline uintptr_t CameraMode      = 0x370;
-        inline uintptr_t UserId          = 0x300;
-        inline uintptr_t AccountAge      = 0x35C;
+        inline uintptr_t MinZoomDistance = 0x364;
+        inline uintptr_t MaxZoomDistance = 0x360;
+        inline uintptr_t CameraMode      = 0x368;
+        inline uintptr_t UserId          = 0xB8;
+        inline uintptr_t AccountAge      = 0x354;
     }
 
     namespace Players {
@@ -63,16 +63,16 @@ namespace offsets {
     }
 
     namespace BasePart {
-        inline uintptr_t Primitive = 0;
+        inline uintptr_t Primitive = 0x178;
     }
 
     namespace Primitive {
-        inline uintptr_t CFrame = 0;
-        inline uintptr_t Position = 0;
-        inline uintptr_t Size     = 0;
-        inline uintptr_t AssemblyLinearVelocity = 0;
-        inline uintptr_t AssemblyAngularVelocity = 0;
-        inline uintptr_t PrimitiveFlags = 0;
+        inline uintptr_t CFrame = 0xB0;
+        inline uintptr_t Position = 0xD4;
+        inline uintptr_t Size     = 0x1C4;
+        inline uintptr_t AssemblyLinearVelocity = 0xE0;
+        inline uintptr_t AssemblyAngularVelocity = 0xEC;
+        inline uintptr_t PrimitiveFlags = 0x1BE;
     }
 
     namespace PrimitiveFlags {
@@ -81,68 +81,68 @@ namespace offsets {
     }
 
     namespace Humanoid {
-        inline uintptr_t Health         = 0x188;
-        inline uintptr_t MaxHealth      = 0x1A8;
-        inline uintptr_t WalkSpeed       = 0x1D0;
-        inline uintptr_t WalkSpeedCheck  = 0x3BC;
-        inline uintptr_t JumpPower       = 0x1A4;
-        inline uintptr_t PlatformStand   = 0x1DC;
-        inline uintptr_t FloorMaterial   = 0x184;
-        inline uintptr_t Jump            = 0x1DA;
-        inline uintptr_t HipHeight       = 0x194;
-        inline uintptr_t JumpHeight      = 0x1A0;
-        inline uintptr_t MaxSlopeAngle   = 0x1AC;
+        inline uintptr_t Health         = 0x184;
+        inline uintptr_t MaxHealth      = 0x19C;
+        inline uintptr_t WalkSpeed       = 0x1C4;
+        inline uintptr_t WalkSpeedCheck  = 0x39C;
+        inline uintptr_t JumpPower       = 0x198;
+        inline uintptr_t PlatformStand   = 0x1D1;
+        inline uintptr_t FloorMaterial   = 0x178;
+        inline uintptr_t Jump            = 0x1CF;
+        inline uintptr_t HipHeight       = 0x188;
+        inline uintptr_t JumpHeight      = 0x194;
+        inline uintptr_t MaxSlopeAngle   = 0x1A0;
     }
 
     namespace Workspace {
-        inline uintptr_t CurrentCamera = 0x488;
-        inline uintptr_t World         = 0x3E0;
+        inline uintptr_t CurrentCamera = 0x4A0;
+        inline uintptr_t World         = 0x3F8;
     }
 
     namespace World {
-        inline uintptr_t Gravity          = 0x210;
-        inline uintptr_t WorldStepsPerSec = 0x680;
-        inline uintptr_t FallenPartsDestroyHeight = 0x208;
+        inline uintptr_t Gravity          = 0x220;
+        inline uintptr_t WorldStepsPerSec = 0x860;
+        inline uintptr_t FallenPartsDestroyHeight = 0x214;
     }
 
     namespace Lighting {
-        inline uintptr_t ClockTime      = 0x1A8;
-        inline uintptr_t Brightness     = 0x110;
-        inline uintptr_t FogEnd         = 0x124;
-        inline uintptr_t FogStart       = 0x130;
-        inline uintptr_t OutdoorAmbient = 0xF8;
-        inline uintptr_t ExposureCompensation = 0x124;
-        inline uintptr_t GlobalShadows  = 0x144;
+        inline uintptr_t ClockTime      = 0xB0;
+        inline uintptr_t Brightness     = 0x100;
+        inline uintptr_t FogEnd         = 0x114;
+        inline uintptr_t FogStart       = 0x118;
+        inline uintptr_t OutdoorAmbient = 0xE8;
+        inline uintptr_t ExposureCompensation = 0x10C;
+        inline uintptr_t GlobalShadows  = 0x12C;
     }
 
     namespace Terrain {
-        inline uintptr_t WaterTransparency = 0x1F4;
-        inline uintptr_t GrassLength       = 0x1E8;
+        inline uintptr_t WaterTransparency = 0x1E4;
+        inline uintptr_t GrassLength       = 0x1D8;
     }
 
     namespace ProximityPrompt {
-        inline uintptr_t HoldDuration            = 0x120;
-        inline uintptr_t MaxActivationDistance   = 0x128;
-        inline uintptr_t Enabled                 = 0x136;
-        inline uintptr_t RequiresLineOfSight     = 0x137;
+        inline uintptr_t HoldDuration            = 0x108;
+        inline uintptr_t MaxActivationDistance   = 0x110;
+        inline uintptr_t Enabled                 = 0x11E;
+        inline uintptr_t RequiresLineOfSight     = 0x11F;
     }
 
     namespace Animator {
-        inline uintptr_t ActiveAnimations = 0xB80;
+        inline uintptr_t ActiveAnimations = 0x900;
     }
 
     namespace AnimationTrack {
-        inline uintptr_t Speed = 0xD4;
+        inline uintptr_t Speed = 0xBC;
     }
 
     namespace Camera {
-        inline uintptr_t CFrame        = 0xD8;
-        inline uintptr_t FieldOfView   = 0x140;
-        inline uintptr_t CameraType    = 0x138;
-        inline uintptr_t CameraSubject = 0xC8;
+        inline uintptr_t CFrame        = 0xC0;
+        inline uintptr_t FieldOfView   = 0x128;
+        inline uintptr_t CameraType    = 0x120;
+        inline uintptr_t CameraSubject = 0xB0;
 
 
-        inline uintptr_t Viewport      = 0x28C;
+        inline uintptr_t Viewport      = 0x284;
     }
 
     namespace ValueBase {

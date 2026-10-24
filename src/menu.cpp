@@ -1109,9 +1109,12 @@ void cam_frames(ImVec2 fs) {
 void move_frames(ImVec2 fs) {
     if (ex::BeginFrame("##mv_a", fs)) {
         ex::Section("Fly");
-        ex::Checkbox   ("Enable fly",   &esp::cfg.fly_enabled);
+        ImGui::BeginDisabled();
+        esp::cfg.fly_enabled = false;
+        ex::Checkbox   ("Enable fly (unavailable)",   &esp::cfg.fly_enabled);
         ex::SliderFloat("Fly speed",    &esp::cfg.fly_speed, 10.f, 300.f, "%.0f");
         ex::Checkbox   ("Planar",       &esp::cfg.fly_planar);
+        ImGui::EndDisabled();
         ex::Section("Speed / jump");
         ex::Checkbox   ("WalkSpeed",    &esp::cfg.speed_enabled);
         ex::SliderFloat("Speed value",  &esp::cfg.speed_value, 16.f, 200.f, "%.0f");
@@ -1585,15 +1588,19 @@ void players_frames(ImVec2 fs, const std::vector<PlayerInfo>* players) {
                 d->AddRectFilled(bb.Min, bb.Max,
                     blend(col(g_th.child), col(g_th.child_hover), t), 5.f);
 
-                ImU32 dot = (p.health <= 0.f) ? col(g_th.text_dimmer) : col(g_th.ok);
+                bool alive = p.valid && p.health > 0.f;
+                bool seen  = p.valid || p.health > 0.f;
+                ImU32 dot = alive ? col(g_th.ok) : col(g_th.text_dimmer);
                 d->AddCircleFilled({bb.Min.x + 10.f, bb.Min.y + H * 0.5f}, 4.f, dot);
                 d->AddText({bb.Min.x + 22.f, bb.Min.y + 6.f},
-                    (p.health <= 0.f) ? col(g_th.text_dimmer) : col(g_th.text), p.name.c_str());
+                    alive ? col(g_th.text) : col(g_th.text_dimmer), p.name.c_str());
                 char sub[64];
-                if (p.health > 0.f)
+                if (seen && p.max_health > 0.f)
                     std::snprintf(sub, sizeof(sub), "hp %.0f/%.0f", p.health, p.max_health);
+                else if (p.valid)
+                    std::snprintf(sub, sizeof(sub), "alive");
                 else
-                    std::snprintf(sub, sizeof(sub), "dead");
+                    std::snprintf(sub, sizeof(sub), "dead / no character");
                 if (g_font_small) ImGui::PushFont(g_font_small);
                 d->AddText({bb.Min.x + 22.f, bb.Min.y + 24.f}, col(g_th.text_dimmer), sub);
                 if (g_font_small) ImGui::PopFont();

@@ -26,19 +26,28 @@ static const char*     CLASS_NAME   = "UwUClient_overlay";
 
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wp, lp)) return true;
+    if ((msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK ||
+         msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN) &&
+        GetCapture() == hwnd)
+    {
+        ReleaseCapture();
+    }
     if (msg == WM_DESTROY) { g_running = false; return 0; }
     if (msg == WM_SIZE && g_swap_chain) {
-        if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
-        ImGui_ImplDX11_InvalidateDeviceObjects();
-        HRESULT hr = g_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-        if (SUCCEEDED(hr)) {
-            ID3D11Texture2D* buf = nullptr;
-            if (SUCCEEDED(g_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&buf)) && buf) {
-                g_device->CreateRenderTargetView(buf, nullptr, &g_rtv);
-                buf->Release();
+        int nw = LOWORD(lp), nh = HIWORD(lp);
+        if (nw > 0 && nh > 0) {
+            if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
+            ImGui_ImplDX11_InvalidateDeviceObjects();
+            HRESULT hr = g_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+            if (SUCCEEDED(hr)) {
+                ID3D11Texture2D* buf = nullptr;
+                if (SUCCEEDED(g_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&buf)) && buf) {
+                    g_device->CreateRenderTargetView(buf, nullptr, &g_rtv);
+                    buf->Release();
+                }
             }
+            ImGui_ImplDX11_CreateDeviceObjects();
         }
-        ImGui_ImplDX11_CreateDeviceObjects();
         return 0;
     }
     if (msg == WM_DPICHANGED) {
@@ -187,10 +196,19 @@ void poll_messages() {
 }
 
 void begin_frame() {
+    if (!g_rtv && g_swap_chain && g_device) {
+        ID3D11Texture2D* buf = nullptr;
+        if (SUCCEEDED(g_swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&buf)) && buf) {
+            g_device->CreateRenderTargetView(buf, nullptr, &g_rtv);
+            buf->Release();
+        }
+    }
+
     ImGui_ImplDX11_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
+    if (!g_rtv) return;
     const float clear[4] = {0.f, 0.f, 0.f, 0.f};
     g_context->OMSetRenderTargets(1, &g_rtv, nullptr);
     g_context->ClearRenderTargetView(g_rtv, clear);
@@ -199,9 +217,13 @@ void begin_frame() {
 void end_frame() {
     ImGui::Render();
     if (g_rtv) ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-    HRESULT hr = g_swap_chain ? g_swap_chain->Present(1, 0) : E_FAIL;
+    if (!g_swap_chain) return;
+    HRESULT hr = g_swap_chain->Present(1, 0);
     if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET) {
         if (g_rtv) { g_rtv->Release(); g_rtv = nullptr; }
+        ImGui_ImplDX11_InvalidateDeviceObjects();
+        g_swap_chain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        ImGui_ImplDX11_CreateDeviceObjects();
     }
 }
 
@@ -209,20 +231,13 @@ void set_passthrough(bool on) {
     if (!g_hwnd) return;
     LONG ex = GetWindowLongA(g_hwnd, GWL_EXSTYLE);
     if (on) {
-
         ex |=  WS_EX_TRANSPARENT;
         ex |=  WS_EX_NOACTIVATE;
     } else {
-
         ex &= ~WS_EX_TRANSPARENT;
-        ex &= ~WS_EX_NOACTIVATE;
+        ex |=  WS_EX_NOACTIVATE;
     }
     SetWindowLongA(g_hwnd, GWL_EXSTYLE, ex);
-    if (!on) {
-
-        SetForegroundWindow(g_hwnd);
-        SetFocus(g_hwnd);
-    }
 }
 
 void set_streamproof(bool on) {
