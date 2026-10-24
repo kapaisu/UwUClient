@@ -631,6 +631,9 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
                 bool open = !g_menu_open.load();
                 g_menu_open.store(open);
                 overlay::set_passthrough(!open);
+                if (roblox_hwnd)
+                    PostMessageA(roblox_hwnd, WM_KEYUP, VK_RSHIFT,
+                        (LPARAM)(1 | (0x36 << 16) | (1 << 30) | (1 << 31)));
             }
         }
         if (GetAsyncKeyState(VK_F10) & 1) {
@@ -661,10 +664,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
             break;
         }
 
-        if (GetAsyncKeyState(esp::cfg.key_fly) & 1) {
-            esp::cfg.fly_enabled = !esp::cfg.fly_enabled;
-            esp::notify(esp::cfg.fly_enabled ? "Fly: ON" : "Fly: OFF");
-        }
         if (GetAsyncKeyState(esp::cfg.key_noclip) & 1) {
             esp::cfg.noclip_enabled = !esp::cfg.noclip_enabled;
             esp::notify(esp::cfg.noclip_enabled ? "No-Clip: ON" : "No-Clip: OFF");

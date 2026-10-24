@@ -544,32 +544,28 @@ void render(ImDrawList* dl, const std::vector<PlayerInfo>& players,
 
         if (cfg.sound_alerts && dist < cfg.sound_alert_range) {
             double now_s = steady_seconds();
-            PlayerInfo& mp = const_cast<PlayerInfo&>(p);
-            if (now_s - mp.last_alert_time > (cfg.sound_alert_cd_ms / 1000.0)) {
-                mp.last_alert_time = now_s;
+            if (now_s - p.last_alert_time > (cfg.sound_alert_cd_ms / 1000.0)) {
+                p.last_alert_time = now_s;
                 async_beep(880, 40);
             }
         }
 
         if ((cfg.hitmarker_enabled || cfg.killfeed_enabled) && p.last_hit_time > 0.0) {
             double now_s = steady_seconds();
-            PlayerInfo& mp = const_cast<PlayerInfo&>(p);
             if (now_s - p.last_hit_time < 0.15) {
                 g_last_hit_flash = ImGui::GetTime();
                 if (cfg.hitmarker_sound) async_beep(1400, 30);
                 if (cfg.killfeed_enabled)
                     push_killfeed("hit  " + p.name, false);
-                mp.last_hit_time = 0.0;
+                p.last_hit_time = 0.0;
             }
         }
         if (cfg.killfeed_enabled && p.health <= 0.f && !p.seen_dead && p.max_health > 0.f) {
-            PlayerInfo& mp = const_cast<PlayerInfo&>(p);
-            mp.seen_dead = true;
+            p.seen_dead = true;
             push_killfeed("KILL  " + p.name, true);
         }
         if (p.health > 0.f && p.seen_dead) {
-            PlayerInfo& mp = const_cast<PlayerInfo&>(p);
-            mp.seen_dead = false;
+            p.seen_dead = false;
         }
 
         if (cfg.draw_line) {

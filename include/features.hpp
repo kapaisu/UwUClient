@@ -680,34 +680,36 @@ inline void apply_movement() {
 
     uintptr_t lp = local_player_ptr();
     uintptr_t ch = lp ? rpm<uintptr_t>(lp + offsets::Player::Character) : 0;
-    if (ch != g_cached_char) refresh_char_cache(ch);
+
+    if (esp::cfg.fly_enabled && ch && !g_cached_hrp_prim) {
+        RbxInstance character{ch};
+        uintptr_t hrp = character.find_child_by_name("HumanoidRootPart").ptr;
+        if (hrp) g_cached_hrp_prim = rpm<uintptr_t>(hrp + offsets::BasePart::Primitive);
+    }
 
     {
         static bool prev_fly = false;
-        static bool idle_locked   = false;
-        static Vec3 idle_pos      { };
+        static bool idle_locked = false;
+        static Vec3 idle_pos{};
 
-        if (esp::cfg.fly_enabled) {
+        bool fly_ready = esp::cfg.fly_enabled && g_cached_hrp_prim &&
+                         offsets::Primitive::AssemblyLinearVelocity && offsets::Camera::CFrame;
 
+        if (esp::cfg.fly_enabled && !fly_ready) {
             static auto next_diag = std::chrono::steady_clock::now();
             auto now = std::chrono::steady_clock::now();
             if (now >= next_diag) {
-                if (!g_cached_hrp_prim ||
-                    !offsets::Primitive::AssemblyLinearVelocity ||
-                    !offsets::Camera::CFrame) {
-                    elog::warn("fly: pre-req missing (hrp_prim=0x%llX vel_off=0x%llX cam_off=0x%llX lp=0x%llX ch=0x%llX)",
-                        (unsigned long long)g_cached_hrp_prim,
-                        (unsigned long long)offsets::Primitive::AssemblyLinearVelocity,
-                        (unsigned long long)offsets::Camera::CFrame,
-                        (unsigned long long)local_player_ptr(),
-                        (unsigned long long)g_cached_char);
-                    next_diag = now + std::chrono::seconds(1);
-                }
+                elog::warn("fly: pre-req missing (hrp_prim=0x%llX vel_off=0x%llX cam_off=0x%llX lp=0x%llX ch=0x%llX)",
+                    (unsigned long long)g_cached_hrp_prim,
+                    (unsigned long long)offsets::Primitive::AssemblyLinearVelocity,
+                    (unsigned long long)offsets::Camera::CFrame,
+                    (unsigned long long)local_player_ptr(),
+                    (unsigned long long)g_cached_char);
+                next_diag = now + std::chrono::seconds(1);
             }
         }
 
-        if (esp::cfg.fly_enabled && g_cached_hrp_prim &&
-            offsets::Primitive::AssemblyLinearVelocity && offsets::Camera::CFrame) {
+        if (fly_ready) {
             uintptr_t cam = ensure_cam();
             if (cam) {
                 if (!prev_fly) {
@@ -740,15 +742,18 @@ inline void apply_movement() {
                 if (GetAsyncKeyState(VK_SPACE)   & 0x8000) dir.y += 1.f;
                 if (GetAsyncKeyState(VK_CONTROL) & 0x8000) dir.y -= 1.f;
 
+                set_anchor(g_cached_hrp_prim, true);
+
                 float len = dir.length();
                 if (len > 1e-3f) {
-
                     float inv = esp::cfg.fly_speed / len;
                     Vec3 vel  = { dir.x * inv, dir.y * inv, dir.z * inv };
                     wpm<Vec3>(g_cached_hrp_prim + offsets::Primitive::AssemblyLinearVelocity, vel);
+                    if (offsets::Primitive::Position)
+                        wpm<Vec3>(g_cached_hrp_prim + offsets::Primitive::Position,
+                                  rpm<Vec3>(g_cached_hrp_prim + offsets::Primitive::Position) + vel * 0.005f);
                     idle_locked = false;
                 } else {
-
                     if (!idle_locked && offsets::Primitive::Position) {
                         idle_pos = rpm<Vec3>(g_cached_hrp_prim + offsets::Primitive::Position);
                         idle_locked = true;
@@ -766,8 +771,9 @@ inline void apply_movement() {
         } else if (prev_fly) {
             elog::info("fly: disabled");
             idle_locked = false;
+            if (g_cached_hrp_prim) set_anchor(g_cached_hrp_prim, false);
         }
-        prev_fly = esp::cfg.fly_enabled;
+        prev_fly = fly_ready && (ensure_cam() != 0);
     }
 
     {

@@ -143,6 +143,16 @@ inline void tick() {
         if (offsets::Player::Character) local_char = rpm<uintptr_t>(lp + offsets::Player::Character);
     }
 
+    Vec3 local_pos{};
+    bool have_local_pos = false;
+    for (auto& p : players) {
+        if (p.cached_char_ptr && p.cached_char_ptr == local_char && p.valid) {
+            local_pos = p.position;
+            have_local_pos = true;
+            break;
+        }
+    }
+
     float sz = esp::cfg.hitbox_size;
     if (sz < 2.f)  sz = 2.f;
     if (sz > 60.f) sz = 60.f;
@@ -160,8 +170,8 @@ inline void tick() {
         if (!p.cached_char_ptr) continue;
         if (local_char && p.cached_char_ptr == local_char) continue;
         if (esp::cfg.team_check && local_team && p.team_ptr && p.team_ptr == local_team) continue;
-        if (esp::cfg.aim_max_dist > 0.f) {
-        }
+        if (esp::cfg.aim_max_dist > 0.f && have_local_pos &&
+            (p.position - local_pos).length() > esp::cfg.aim_max_dist) continue;
         Cache* c = resolve_hitbox(p.cached_char_ptr, target);
         if (!c) continue;
 
