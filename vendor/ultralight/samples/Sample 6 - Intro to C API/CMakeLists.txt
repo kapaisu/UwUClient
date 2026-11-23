@@ -1,1 +1,0 @@
-add_app(Sample6 main.c)

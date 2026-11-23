@@ -141,7 +141,6 @@ namespace offsets {
         inline uintptr_t CameraType    = 0x138;
         inline uintptr_t CameraSubject = 0xC8;
 
-
         inline uintptr_t Viewport      = 0x28C;
     }
 
@@ -157,7 +156,6 @@ namespace offsets {
     }
 
     namespace GuiService {
-
 
         inline uintptr_t GuiInset = 0x330;
     }
@@ -223,7 +221,7 @@ namespace offsets {
             while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r'))
                 s.pop_back();
         };
-        auto put = [](uintptr_t& dst, uintptr_t v) { if (v) dst = v; };
+        auto put = [](uintptr_t& dst, uintptr_t v) { dst = v; };
 
         while (std::getline(f, line)) {
             auto eq = line.find('=');

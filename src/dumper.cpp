@@ -16,7 +16,6 @@ namespace dumper {
     std::atomic<size_t> g_progress_count{0};
     std::string         g_last_dump_dir;
 
-
     static constexpr size_t MAX_NODES = 500000;
     static constexpr int    MAX_DEPTH = 40;
 
@@ -97,20 +96,17 @@ namespace dumper {
             std::string cls  = f.node.get_class();
             std::string name = f.node.get_name();
 
-
             for (int i = 0; i < f.depth; i++) fputs("  ", tf);
             fprintf(tf, "[%s] \"%s\" @ 0x%llX  parent=0x%llX\n",
                     cls.c_str(), name.c_str(),
                     (unsigned long long)f.node.ptr,
                     (unsigned long long)f.parent);
 
-
             if (f.depth == 1) {
                 fprintf(sf, "[%s] %s @ 0x%llX\n",
                         cls.c_str(), name.c_str(),
                         (unsigned long long)f.node.ptr);
             }
-
 
             if (!first_json) fputs(",\n", jf);
             first_json = false;
@@ -121,7 +117,6 @@ namespace dumper {
             fputs("\"class\":", jf); escape_json(jf, cls); fputs(",", jf);
             fputs("\"name\":",  jf); escape_json(jf, name);
             fputs("}", jf);
-
 
             auto kids = f.node.get_children();
             for (auto it = kids.rbegin(); it != kids.rend(); ++it) {

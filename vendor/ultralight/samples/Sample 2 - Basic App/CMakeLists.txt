@@ -1,1 +1,0 @@
-add_app(Sample2 main.cpp)

@@ -408,7 +408,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
         return 1;
     }
 
-
     {
         std::string dir = mem::exe_dir();
         std::wstring wdir(dir.begin(), dir.end());
@@ -800,31 +799,6 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int) {
                 ImGuiWindowFlags_NoNav);
 
             ImDrawList* dl = ImGui::GetWindowDrawList();
-
-            {
-                RbxVisualEngine ve = RbxVisualEngine::get();
-                RbxDataModel    dm = RbxDataModel::get();
-
-                int valid = 0;
-                Vec3 first_pos{};
-                std::string first_name;
-                for (auto& p : g_players) {
-                    if (p.valid) {
-                        if (!valid) { first_pos = p.position; first_name = p.name; }
-                        valid++;
-                    }
-                }
-
-                char line1[160];
-                snprintf(line1, sizeof(line1),
-                    "UwUClient | ve:%s dm:%s | total:%d valid:%d | RSHIFT=menu END=exit",
-                    ve.valid() ? "OK" : "FAIL",
-                    dm.valid() ? "OK" : "FAIL",
-                    (int)g_players.size(), valid);
-
-                dl->AddText({11.f, 11.f}, IM_COL32(0,0,0,220), line1);
-                dl->AddText({10.f, 10.f}, IM_COL32(255,255,255,255), line1);
-            }
 
             {
                 RbxVisualEngine ve_now = RbxVisualEngine::get();

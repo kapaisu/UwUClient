@@ -12,7 +12,6 @@ namespace bgimage {
     int         width();
     int         height();
 
-
     void cover_uv(float rect_w, float rect_h, ImVec2& uv0, ImVec2& uv1);
 
 }

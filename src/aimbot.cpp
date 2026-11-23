@@ -13,7 +13,6 @@
 #include <thread>
 #include <chrono>
 #include <cmath>
-#include <random>
 #include <mutex>
 #include <atomic>
 #include <algorithm>
@@ -33,20 +32,7 @@ extern std::atomic<uintptr_t> g_aim_target;
 
 namespace aimbot {
 
-    static std::mt19937 gen(std::random_device{}());
-
     struct AimPoint { Vec3 world; Vec2 screen; float dist; bool valid; };
-
-    static void move_mouse(float dx, float dy) {
-        INPUT input{};
-        input.type = INPUT_MOUSE;
-        input.mi.dx = (LONG)std::round(dx);
-        input.mi.dy = (LONG)std::round(dy);
-        input.mi.dwFlags = MOUSEEVENTF_MOVE;
-        if (input.mi.dx != 0 || input.mi.dy != 0) {
-            SendInput(1, &input, sizeof(INPUT));
-        }
-    }
 
     static void send_click() {
         INPUT in[2]{};
@@ -205,7 +191,6 @@ namespace aimbot {
     struct Vec2i16   { int16_t x, y; };
     struct Vec2f     { float x, y; };
 
-
     struct RbxCFrame {
         float px, py, pz;
         float r00, r01, r02;
@@ -240,6 +225,25 @@ namespace aimbot {
         return cf;
     }
 
+    struct Mat3 { float m[9]; };
+
+    static uintptr_t resolve_camera_ptr() {
+        RbxDataModel dm = RbxDataModel::get();
+        if (!dm.valid() || !offsets::Workspace::CurrentCamera) return 0;
+        RbxInstance ws = dm.get_service("Workspace");
+        if (!ws.valid()) return 0;
+        return rpm<uintptr_t>(ws.ptr + offsets::Workspace::CurrentCamera);
+    }
+
+    static bool write_camera_lookat(uintptr_t cam_ptr, Vec3 eye, Vec3 target) {
+        if (!cam_ptr || !offsets::Camera::CFrame) return false;
+        RbxCFrame cf = make_lookat_cf(eye, target);
+        Mat3 rot{ { cf.r00, cf.r01, cf.r02,
+                    cf.r10, cf.r11, cf.r12,
+                    cf.r20, cf.r21, cf.r22 } };
+        return wpm<Mat3>(cam_ptr + offsets::Camera::CFrame, rot);
+    }
+
     static uintptr_t g_silent_mouse_service = 0;
     static uintptr_t g_silent_gui_service   = 0;
     static uintptr_t g_silent_camera        = 0;
@@ -248,7 +252,6 @@ namespace aimbot {
     static bool      g_silent_inset_saved   = false;
     static bool      g_silent_inset_dirty   = false;
     static bool      g_silent_viewport_dirty = false;
-
 
     struct VpCandidate { unsigned off; bool is_float; };
     static std::vector<VpCandidate> g_viewport_candidates;
@@ -281,13 +284,11 @@ namespace aimbot {
             g_silent_inset_saved = true;
         }
 
-
         if (!g_silent_camera && offsets::Workspace::CurrentCamera) {
             RbxInstance ws = dm.get_service("Workspace");
             if (ws.valid())
                 g_silent_camera = rpm<uintptr_t>(ws.ptr + offsets::Workspace::CurrentCamera);
         }
-
 
         auto now = std::chrono::steady_clock::now();
         bool need_scan = g_silent_camera &&
@@ -307,7 +308,6 @@ namespace aimbot {
 
                 g_viewport_candidates.clear();
 
-
                 int16_t wx16 = (int16_t)s.x, wy16 = (int16_t)s.y;
                 for (size_t off = 0; off + 4 <= got; off += 2) {
                     int16_t x, y;
@@ -318,7 +318,6 @@ namespace aimbot {
                         g_viewport_candidates.push_back({(unsigned)off, false});
                     }
                 }
-
 
                 for (size_t off = 0; off + 8 <= got; off += 4) {
                     float fx, fy;
@@ -350,7 +349,6 @@ namespace aimbot {
         return rpm<uintptr_t>(g_silent_mouse_service
                               + offsets::MouseService::InputObject + 0x10);
     }
-
 
     static void silent_restore_inset() {
         if (g_silent_inset_dirty && g_silent_gui_service &&
@@ -399,7 +397,6 @@ namespace aimbot {
             if (!esp::cfg.silent_aim) { silent_restore_inset(); prev_silent = false; continue; }
             if (check::is_typing())   { silent_restore_inset(); continue; }
 
-
             if (!prev_silent) {
                 esp::cfg.draw_fov = true;
                 prev_silent = true;
@@ -408,7 +405,6 @@ namespace aimbot {
             const bool is_rivals_mode  = (games::active() == games::Id::Rivals);
             const bool is_arsenal_mode = (games::active() == games::Id::Arsenal);
             const bool needs_mouse     = !is_rivals_mode && !is_arsenal_mode;
-
 
             if (needs_mouse) {
                 if (!offsets::MouseService::InputObject ||
@@ -454,7 +450,6 @@ namespace aimbot {
             Vec3 cam_pos = get_camera_pos(vm);
             uintptr_t lteam = g_local_team.load();
             float pred = esp::cfg.aim_predict ? esp::cfg.aim_prediction : 0.f;
-
 
             float fov  = esp::cfg.fov_radius > 0.f ? esp::cfg.fov_radius : 200.f;
 
@@ -562,7 +557,6 @@ namespace aimbot {
 
             if (is_rivals) {
 
-
                 if (!g_silent_camera) {
                     if (once_per_sec(t_no_svc))
                         elog::warn("silent(Rivals): camera not cached yet");
@@ -574,13 +568,11 @@ namespace aimbot {
                     continue;
                 }
 
-
                 float tx = best_screen.x + esp::cfg.rivals_x_bias;
                 float ty = best_screen.y + esp::cfg.rivals_y_bias;
 
                 float safe_tx = std::fabs(tx) < 1.f ? (tx < 0.f ? -1.f : 1.f) : tx;
                 float safe_ty = std::fabs(ty) < 1.f ? (ty < 0.f ? -1.f : 1.f) : ty;
-
 
                 float mx = screen.x * 0.5f, my = screen.y * 0.5f;
                 if (g_silent_mouse_service && offsets::MouseService::InputObject &&
@@ -609,17 +601,14 @@ namespace aimbot {
                 Vec2i16 vp16{ (int16_t)dx, (int16_t)dy };
                 Vec2f   vpf { dx, dy };
 
-
                 bool firing_ok = !esp::cfg.silent_only_when_firing ||
                                  (GetAsyncKeyState(VK_LBUTTON) & 0x8000);
                 if (!firing_ok) {
-
 
                     silent_restore_inset();
                     std::this_thread::sleep_for(std::chrono::milliseconds(2));
                     continue;
                 }
-
 
                 Vec2f   dim_f  { screen.x, screen.y };
                 Vec2i16 dim_i16{ (int16_t)screen.x, (int16_t)screen.y };
@@ -636,7 +625,6 @@ namespace aimbot {
                 g_silent_viewport_dirty = true;
 
                 if (once_per_sec(t_ok)) {
-
 
                     Vec2f back{0.f, 0.f};
                     bool have_back = false;
@@ -657,7 +645,6 @@ namespace aimbot {
                         (have_back ? " OVERWRITTEN" : ""));
                 }
 
-
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             } else if (games::active() == games::Id::Arsenal) {
                 if (once_per_sec(t_no_svc))
@@ -665,7 +652,6 @@ namespace aimbot {
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 continue;
             } else {
-
 
                 if (!g_silent_gui_service || !offsets::GuiService::GuiInset) {
                     if (once_per_sec(t_no_svc))
@@ -1076,66 +1062,18 @@ namespace aimbot {
                     float raw_dx = p_screen.x - center.x;
                     float raw_dy = p_screen.y - center.y;
 
-                    if (esp::cfg.aim_lock) {
-
-                        float mx = raw_dx;
-                        float my = raw_dy;
-                        constexpr float LOCK_CAP = 1500.f;
-                        if (mx >  LOCK_CAP) mx =  LOCK_CAP;
-                        if (mx < -LOCK_CAP) mx = -LOCK_CAP;
-                        if (my >  LOCK_CAP) my =  LOCK_CAP;
-                        if (my < -LOCK_CAP) my = -LOCK_CAP;
-
-                        if (esp::cfg.aim_shake) {
-                            std::normal_distribution<float> sx(0.f, esp::cfg.aim_shake_x);
-                            std::normal_distribution<float> sy2(0.f, esp::cfg.aim_shake_y);
-                            mx += sx(gen);
-                            my += sy2(gen);
-                        }
-                        mx += carry_x;
-                        my += carry_y;
-                        float emit_x = std::round(mx);
-                        float emit_y = std::round(my);
-                        carry_x = mx - emit_x;
-                        carry_y = my - emit_y;
-                        if (emit_x != 0.f || emit_y != 0.f)
-                            move_mouse(emit_x, emit_y);
-                        smoothed_dx = 0.f;
-                        smoothed_dy = 0.f;
-                    } else if (esp::cfg.aim_deadzone > 0.f &&
-                               fabsf(raw_dx) < esp::cfg.aim_deadzone &&
-                               fabsf(raw_dy) < esp::cfg.aim_deadzone) {
-                        smoothed_dx = 0.f;
-                        smoothed_dy = 0.f;
-                    } else {
-                        float strength_mult = esp::cfg.aim_strength / 100.f;
-
-                        float sy = esp::cfg.aim_split_smooth ? esp::cfg.aim_smooth_y : esp::cfg.aim_smooth;
-                        float tx = std::clamp(esp::cfg.aim_smooth * (delta_time * 200.f), 0.01f, 1.0f);
-                        float ty = std::clamp(sy * (delta_time * 200.f), 0.01f, 1.0f);
-
-                        smoothed_dx = smoothed_dx + (raw_dx * strength_mult - smoothed_dx) * tx;
-                        smoothed_dy = smoothed_dy + (raw_dy * strength_mult - smoothed_dy) * ty;
-
-                        float move_x = smoothed_dx / 1.5f;
-                        float move_y = smoothed_dy / 1.5f;
-
-                        if (esp::cfg.aim_jitter) {
-                            std::normal_distribution<float> d(0.0f, esp::cfg.aim_jitter_strength);
-                            move_x += d(gen);
-                            move_y += d(gen);
-                        }
-                        if (esp::cfg.aim_shake) {
-                            std::normal_distribution<float> sx(0.f, esp::cfg.aim_shake_x);
-                            std::normal_distribution<float> sy2(0.f, esp::cfg.aim_shake_y);
-                            move_x += sx(gen);
-                            move_y += sy2(gen);
-                        }
-
-                        move_x = std::clamp(move_x, -250.f, 250.f);
-                        move_y = std::clamp(move_y, -250.f, 250.f);
-                        move_mouse(move_x, move_y);
+                    static uintptr_t cached_cam = 0;
+                    static std::chrono::steady_clock::time_point cam_refresh{};
+                    auto nowc = std::chrono::steady_clock::now();
+                    if (!cached_cam || nowc - cam_refresh > std::chrono::seconds(2)) {
+                        cached_cam = resolve_camera_ptr();
+                        cam_refresh = nowc;
                     }
+                    Vec3 target_world = ap.valid ? ap.world : best_target->position;
+                    if (cached_cam) write_camera_lookat(cached_cam, cam_pos, target_world);
+
+                    smoothed_dx = 0.f; smoothed_dy = 0.f;
+                    carry_x = 0.f; carry_y = 0.f;
 
                     if (esp::cfg.aim_autofire &&
                         fabsf(raw_dx) < esp::cfg.aim_autofire_fov &&

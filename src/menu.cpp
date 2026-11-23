@@ -2422,4 +2422,3 @@ void render(const std::vector<PlayerInfo>* players, uintptr_t render_view) {
 }
 
 }
-

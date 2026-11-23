@@ -226,18 +226,14 @@ namespace esp {
         int   silent_aim_part      = 0;
         float silent_fov           = 200.f;
 
-
         bool  rivals_flip_x        = false;
         bool  rivals_flip_y        = false;
         float rivals_x_bias        = 0.f;
         float rivals_y_bias        = 0.f;
 
-
         bool  silent_only_when_firing = true;
 
-
         int   rivals_formula        = 0;
-
 
         bool  arsenal_continuous_flick = false;
 

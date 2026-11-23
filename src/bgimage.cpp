@@ -16,7 +16,6 @@ namespace bgimage {
         if (!dev) return false;
         shutdown();
 
-
         HRESULT hr_co = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
         (void)hr_co;
 
